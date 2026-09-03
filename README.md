@@ -2,6 +2,23 @@
 
 A lightweight Windows desktop GUI for creating QR codes with **PowerShell 5.1 + WPF/XAML**.
 
+<p align="center">
+  <a href="screenshots/Screenshot1.png">
+    <img src="screenshots/Screenshot1.png" width="31%">
+  </a>
+  &nbsp;
+  <a href="screenshots/Screenshot2.png">
+    <img src="screenshots/Screenshot2.png" width="31%">
+  </a>
+  &nbsp;
+  <a href="screenshots/Screenshot3.png">
+    <img src="screenshots/Screenshot3.png" width="31%">
+  </a>
+</p>
+<p align="center">
+  <i>Click a screenshot to view it in full size.</i>
+</p>
+
 The v2 interface is a full WPF redesign of the original WinForms version. The QR engine is separated from the UI so the application can be styled and extended without rewriting the QR logic.
 
 ## Features
