@@ -1,5 +1,5 @@
 ﻿# QRCore.ps1
-# Core functions for Universal QR-Code Generator WPF v2
+# Core functions for Universal QR-Code Generator WPF v2.5
 
 function Get-SafeFileName {
     param([string]$Name)
@@ -40,6 +40,137 @@ function Escape-WifiText {
         $Text = $Text.Replace($char, "\" + $char)
     }
     return $Text
+}
+
+
+$Script:LocalQrEngineLoaded = $false
+
+function Initialize-LocalQrEngine {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$EnginePath = (Join-Path $PSScriptRoot "LocalQrEngine.cs")
+    )
+
+    if ($Script:LocalQrEngineLoaded -and ("LocalQr.QrEncoder" -as [type])) {
+        return
+    }
+
+    if ("LocalQr.QrEncoder" -as [type]) {
+        $Script:LocalQrEngineLoaded = $true
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $EnginePath)) {
+        throw ("Local QR engine source file not found: " + $EnginePath)
+    }
+
+    try {
+        Add-Type -Path $EnginePath -ErrorAction Stop
+        $Script:LocalQrEngineLoaded = $true
+    }
+    catch {
+        throw ("Local QR engine could not be loaded: " + $_.Exception.Message)
+    }
+}
+
+function New-QrPngLocal {
+    param(
+        [Parameter(Mandatory=$true)][string]$Data,
+        [Parameter(Mandatory=$true)][string]$OutputPath,
+        [Parameter(Mandatory=$true)][int]$Size,
+        [Parameter(Mandatory=$true)][ValidateSet("L","M","Q","H")][string]$Ecc
+    )
+
+    Initialize-LocalQrEngine
+
+    if ($Size -lt 200) {
+        throw "The requested PNG size is too small for the local QR renderer."
+    }
+
+    $result = [LocalQr.QrEncoder]::Encode($Data, $Ecc)
+    if ($null -eq $result -or $null -eq $result.Modules) {
+        throw "The local QR engine returned no matrix."
+    }
+
+    $moduleCount = [int]$result.Modules.GetLength(0)
+    $quietZone = 4
+    $totalModules = $moduleCount + (2 * $quietZone)
+    $modulePixels = [int][Math]::Floor($Size / [double]$totalModules)
+
+    if ($modulePixels -lt 1) {
+        throw "The requested PNG size is too small for this QR version."
+    }
+
+    $qrPixelSize = $totalModules * $modulePixels
+    $offset = [int][Math]::Floor(($Size - $qrPixelSize) / 2.0)
+
+    $bitmap = [System.Drawing.Bitmap]::new(
+        $Size,
+        $Size,
+        [System.Drawing.Imaging.PixelFormat]::Format24bppRgb
+    )
+
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $graphics.Clear([System.Drawing.Color]::White)
+            $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
+            $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+            $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+
+            $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Black)
+            try {
+                for ($row = 0; $row -lt $moduleCount; $row++) {
+                    $col = 0
+                    while ($col -lt $moduleCount) {
+                        while ($col -lt $moduleCount -and -not [bool]$result.Modules.GetValue($row, $col)) {
+                            $col++
+                        }
+
+                        if ($col -ge $moduleCount) {
+                            break
+                        }
+
+                        $runStart = $col
+                        while ($col -lt $moduleCount -and [bool]$result.Modules.GetValue($row, $col)) {
+                            $col++
+                        }
+
+                        $runLength = $col - $runStart
+                        $x = $offset + (($quietZone + $runStart) * $modulePixels)
+                        $y = $offset + (($quietZone + $row) * $modulePixels)
+
+                        $graphics.FillRectangle(
+                            $brush,
+                            $x,
+                            $y,
+                            ($runLength * $modulePixels),
+                            $modulePixels
+                        )
+                    }
+                }
+            }
+            finally {
+                $brush.Dispose()
+            }
+        }
+        finally {
+            $graphics.Dispose()
+        }
+
+        $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    }
+    finally {
+        $bitmap.Dispose()
+    }
+
+    return [PSCustomObject]@{
+        Engine = "local"
+        Version = [int]$result.Version
+        Mask = [int]$result.Mask
+        ModuleCount = $moduleCount
+        Ecc = [string]$result.ErrorCorrection
+    }
 }
 
 function New-QrPngViaApi {
@@ -203,6 +334,126 @@ function Add-LogoToQr {
     Move-Item -LiteralPath $temp -Destination $QrPath -Force
 }
 
+function Compare-QrPayloadText {
+    param(
+        [Parameter(Mandatory=$true)][AllowEmptyString()][string]$Expected,
+        [Parameter(Mandatory=$true)][AllowEmptyString()][string]$Decoded
+    )
+
+    # The comparison is intentionally privacy-preserving: it never returns the
+    # payload text itself. It only classifies the kind of difference.
+    $exp = $Expected.Replace("`r`n","`n").Replace("`r","`n")
+    $dec = $Decoded.Replace("`r`n","`n").Replace("`r","`n")
+
+    $result = [ordered]@{
+        Exact = $false
+        Equivalent = $false
+        Category = "ContentDifference"
+        Summary = "Decoded text differs from the generated payload"
+        ExpectedLength = $exp.Length
+        DecodedLength = $dec.Length
+        FirstDifferenceIndex = -1
+        ExpectedCodePoint = "<end>"
+        DecodedCodePoint = "<end>"
+    }
+
+    if ($exp -ceq $dec) {
+        $result.Exact = $true
+        $result.Equivalent = $true
+        $result.Category = "Exact"
+        $result.Summary = "Exact payload match"
+        return [PSCustomObject]$result
+    }
+
+    # QRServer-style encoders/readers sometimes add or remove the conventional
+    # final line break of a vCard. This does not change the vCard fields.
+    $isVCard = $exp.StartsWith("BEGIN:VCARD`n", [System.StringComparison]::Ordinal)
+    if ($isVCard) {
+        $expOne = if ($exp.EndsWith("`n", [System.StringComparison]::Ordinal)) { $exp.Substring(0, $exp.Length - 1) } else { $exp }
+        $decOne = if ($dec.EndsWith("`n", [System.StringComparison]::Ordinal)) { $dec.Substring(0, $dec.Length - 1) } else { $dec }
+        if ($expOne -ceq $decOne) {
+            $result.Equivalent = $true
+            $result.Category = "VCardFinalLineBreak"
+            $result.Summary = "vCard fields match; only the final line break differs"
+            return [PSCustomObject]$result
+        }
+    }
+
+    try {
+        $expNfc = $exp.Normalize([System.Text.NormalizationForm]::FormC)
+        $decNfc = $dec.Normalize([System.Text.NormalizationForm]::FormC)
+        if ($expNfc -ceq $decNfc) {
+            $result.Category = "UnicodeNormalization"
+            $result.Summary = "Text is Unicode-equivalent but uses a different normalization form"
+        }
+    }
+    catch {}
+
+    if ($result.Category -eq "ContentDifference") {
+        # Detect the common UTF-8-as-Latin-1 mojibake pattern without logging
+        # any payload content.
+        try {
+            $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+            $utf8 = [System.Text.Encoding]::UTF8
+            $repairedDecoded = $utf8.GetString($latin1.GetBytes($dec))
+            if ($repairedDecoded -ceq $exp) {
+                $result.Category = "Utf8DecodedAsLatin1"
+                $result.Summary = "The decoded payload appears to interpret UTF-8 bytes as Latin-1"
+            }
+        }
+        catch {}
+    }
+
+    if ($result.Category -eq "ContentDifference") {
+        try {
+            $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+            $utf8 = [System.Text.Encoding]::UTF8
+            $mojibakeExpected = $latin1.GetString($utf8.GetBytes($exp))
+            if ($mojibakeExpected -ceq $dec) {
+                $result.Category = "Utf8DecodedAsLatin1"
+                $result.Summary = "The decoded payload appears to interpret UTF-8 bytes as Latin-1"
+            }
+        }
+        catch {}
+    }
+
+    if ($result.Category -eq "ContentDifference") {
+        # Some QR readers guess Big5 when a QR payload contains UTF-8 bytes but
+        # no charset information they trust. A characteristic example is the
+        # UTF-8 byte pair C3 B6 (ö), which Big5 maps to U+7E79. Detect the
+        # transformation over the complete payload so a real content change is
+        # never hidden behind this warning.
+        try {
+            $big5 = [System.Text.Encoding]::GetEncoding(950)
+            $utf8 = [System.Text.Encoding]::UTF8
+            $big5Interpreted = $big5.GetString($utf8.GetBytes($exp))
+            if ($big5Interpreted -ceq $dec) {
+                $result.Category = "CharsetAmbiguity"
+                $result.Summary = "The online reader interpreted UTF-8 bytes as a different character set (Big5-compatible pattern)"
+            }
+        }
+        catch {}
+    }
+
+    if ($result.Category -eq "ContentDifference" -and $exp.Length -ne $dec.Length) {
+        $result.Category = "LengthDifference"
+        $result.Summary = "Decoded payload length differs from the generated payload"
+    }
+
+    $limit = [Math]::Min($exp.Length, $dec.Length)
+    $idx = 0
+    while ($idx -lt $limit -and $exp[$idx] -ceq $dec[$idx]) { $idx++ }
+    if ($idx -eq $limit -and $exp.Length -eq $dec.Length) { $idx = -1 }
+
+    if ($idx -ge 0) {
+        $result.FirstDifferenceIndex = $idx
+        if ($idx -lt $exp.Length) { $result.ExpectedCodePoint = ("U+{0:X4}" -f [int][char]$exp[$idx]) }
+        if ($idx -lt $dec.Length) { $result.DecodedCodePoint = ("U+{0:X4}" -f [int][char]$dec[$idx]) }
+    }
+
+    return [PSCustomObject]$result
+}
+
 function Test-QrViaApi {
     param(
         [Parameter(Mandatory=$true)][string]$QrPath,
@@ -288,7 +539,10 @@ function Test-QrViaApi {
                         return [PSCustomObject]@{
                             Success = $false
                             Exact = $false
+                            Equivalent = $false
                             Error = [string]$symbol.error
+                            ErrorType = "Decode"
+                            Exception = $null
                         }
                     }
 
@@ -297,17 +551,29 @@ function Test-QrViaApi {
                         return [PSCustomObject]@{
                             Success = $false
                             Exact = $false
+                            Equivalent = $false
                             Error = "Die Read-API lieferte keinen decodierten Inhalt."
+                            ErrorType = "Decode"
+                            Exception = $null
                         }
                     }
 
-                    $normExpected = $ExpectedData.Replace("`r`n","`n").Replace("`r","`n")
-                    $normDecoded = $decoded.Replace("`r`n","`n").Replace("`r","`n")
+                    $comparison = Compare-QrPayloadText -Expected $ExpectedData -Decoded $decoded
 
                     return [PSCustomObject]@{
                         Success = $true
-                        Exact = ($normExpected -ceq $normDecoded)
+                        Exact = [bool]$comparison.Exact
+                        Equivalent = [bool]$comparison.Equivalent
+                        MismatchCategory = [string]$comparison.Category
+                        MismatchSummary = [string]$comparison.Summary
+                        ExpectedLength = [int]$comparison.ExpectedLength
+                        DecodedLength = [int]$comparison.DecodedLength
+                        FirstDifferenceIndex = [int]$comparison.FirstDifferenceIndex
+                        ExpectedCodePoint = [string]$comparison.ExpectedCodePoint
+                        DecodedCodePoint = [string]$comparison.DecodedCodePoint
                         Error = $null
+                        ErrorType = $null
+                        Exception = $null
                     }
                 }
                 finally {
@@ -320,6 +586,18 @@ function Test-QrViaApi {
         }
         finally {
             $client.Dispose()
+        }
+    }
+    catch {
+        # A read test is optional. Network/provider errors are returned as a
+        # structured result so an already-created QR code remains successful.
+        return [PSCustomObject]@{
+            Success = $false
+            Exact = $false
+            Equivalent = $false
+            Error = [string]$_.Exception.Message
+            ErrorType = "Transport"
+            Exception = $_.Exception
         }
     }
     finally {

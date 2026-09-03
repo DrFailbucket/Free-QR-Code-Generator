@@ -1,6 +1,8 @@
-# Universal QR-Code Generator — WPF v2.4
+# Universal QR-Code Generator — WPF v2.5
 
-A lightweight Windows desktop GUI for creating QR codes with **PowerShell 5.1 + WPF/XAML**.
+A lightweight and portable Windows desktop GUI for creating QR codes with **PowerShell 5.1 + WPF/XAML**.
+
+The application supports fully local / offline QR generation, optional online providers, automatic fallback, German and English UI, custom logos, vCard export and QR readability testing.
 
 <p align="center">
   <a href="screenshots/Screenshot1.png">
@@ -15,13 +17,16 @@ A lightweight Windows desktop GUI for creating QR codes with **PowerShell 5.1 + 
     <img src="screenshots/Screenshot3.png" width="31%">
   </a>
 </p>
+
 <p align="center">
   <i>Click a screenshot to view it in full size.</i>
 </p>
 
-The v2 interface is a full WPF redesign of the original WinForms version. The QR engine is separated from the UI so the application can be styled and extended without rewriting the QR logic.
+The v2 interface is a full WPF redesign of the original WinForms version. QR generation logic is separated from the UI so the application can be styled, extended and maintained without rewriting the complete frontend.
 
 ## Features
+
+### QR types
 
 - Contact / vCard 3.0
 - Website / URL
@@ -31,31 +36,210 @@ The v2 interface is a full WPF redesign of the original WinForms version. The QR
 - Phone number
 - SMS
 - Geo coordinates
+
+### General
+
 - Modern dark WPF interface
+- German and English UI
+- Automatic Windows language detection
+- Live language switching without restart
 - QR preview
-- Optional centered custom logo
-- Adjustable logo size (8–20 %)
-- Automatic ECC H when a logo is used
 - PNG export
 - Automatic `.vcf` export for vCards
-- Configurable output size
-- Optional automatic QR readability test
-- No logo bundled or selected by default
+- Configurable QR size
+- Configurable ECC level
+- Optional centered custom logo
+- Adjustable logo size from 8–20 %
+- Automatic ECC `H` when a logo is used
+- Portable configuration
+- No installation required
+- No external PowerShell modules required
+
+### QR generation providers
+
+- **Local / Offline QR engine**
+- **QRServer / goQR.me**
+- **Custom QRServer-compatible API**
+- Optional online fallback if local generation fails
+- Optional automatic online readability test
+- Manual **QR-Code online prüfen / Verify QR online** button
+
+## Local / Offline QR engine
+
+v2.5 adds a built-in QR engine in:
+
+```text
+src/LocalQrEngine.cs
+```
+
+The engine is compiled locally at runtime through Windows PowerShell / .NET and does not require an additional module, package manager or external service.
+
+The local engine supports:
+
+- QR versions 1–40
+- Error correction levels `L`, `M`, `Q`, `H`
+- automatic QR version selection
+- automatic mask selection
+- Reed-Solomon error correction
+- UTF-8 payloads
+- ECI information for Unicode text
+- configurable quiet zone
+- local PNG generation
+- existing logo overlay workflow
+
+When local generation is used successfully, the QR payload does **not** need to be sent to an external generation service.
+
+## Online fallback
+
+The local engine can optionally use an online provider as a fallback.
+
+Example:
+
+```text
+Local / Offline
+      ↓
+generation succeeds
+      ↓
+QR is created locally
+```
+
+If local generation fails and online fallback is enabled:
+
+```text
+Local / Offline
+      ↓
+generation fails
+      ↓
+configured fallback provider
+      ↓
+QRServer or custom compatible API
+```
+
+The application reports when an online fallback was used.
+
+The online provider is never required for successful local QR generation unless you explicitly enable an online readability test.
+
+## Unicode protection
+
+Some online QR services or QR readers may interpret non-ASCII characters with a different character set.
+
+This can affect content containing characters such as:
+
+- `ä`
+- `ö`
+- `ü`
+- `ß`
+- accented characters
+- other Unicode characters
+
+If an online generation provider is selected and non-ASCII content is detected, v2.5 can ask whether the QR should be generated **locally first**.
+
+Choosing local-first for that QR:
+
+- does not permanently change the configured provider
+- uses the local engine for the current QR
+- keeps the configured online provider available as fallback
+- improves UTF-8 reliability for Unicode content
+
+The application can also detect known charset ambiguity during an online readability test and reports it as a warning instead of automatically treating the QR image as defective.
+
+## QR readability test
+
+QR verification is separate from QR generation.
+
+You can use:
+
+- automatic online readability testing after generation
+- manual verification with the **Verify QR online** button
+
+If a locally generated QR is successful but the online read service is unavailable, the QR generation remains successful.
+
+Example debug result:
+
+```text
+Local engine      : SUCCESS
+Read test         : UNAVAILABLE [DNS]
+Generate          : Completed successfully
+```
+
+A failed optional online verification does not invalidate a QR that was already generated locally.
+
+## Debug mode
+
+For troubleshooting, start:
+
+```text
+Universal_QR_GUI_Debug.bat
+```
+
+The debug launcher provides detailed diagnostic output such as:
+
+```text
+Local engine      : SUCCESS | Version=20; Mask=5; Modules=97; ECC=H
+Fallback          : SUCCESS via QRServer
+Read test         : PASS [Exact] | Exact payload match
+```
+
+Network and provider errors are classified where possible, for example:
+
+```text
+FAILED [DNS]
+FAILED [Connection]
+FAILED [Timeout]
+FAILED [TLS]
+```
+
+The console also provides a human-readable recommendation:
+
+```text
+What to do        : Check Internet/VPN connectivity, firewall/proxy settings and provider availability.
+```
+
+Technical exception details remain available for troubleshooting.
+
+### Debug privacy
+
+The debug console deliberately does **not** print the QR payload itself.
+
+This prevents values such as:
+
+- Wi-Fi passwords
+- contact details
+- private URLs
+- internal text
+
+from appearing directly in the debug log.
 
 ## Project structure
 
 ```text
-Universal_QR_Code_Generator_WPF_v2/
+QR_Code-Generator-with-UI/
 ├── src/
 │   ├── Universal_QR_GUI.ps1
 │   ├── MainWindow.xaml
-│   └── QRCore.ps1
+│   ├── QRCore.ps1
+│   └── LocalQrEngine.cs
+│
 ├── assets/
 │   └── Universal_QR_GUI.ico
+│
+├── locales/
+│   ├── de.json
+│   └── en.json
+│
+├── config/
+│   ├── settings.example.json
+│   └── settings.json          # created locally, ignored by Git
+│
 ├── screenshots/
+│
+├── output/                    # default QR destination
+├── temp/                      # temporary runtime files
+│
 ├── Universal_QR_GUI_Starten.vbs
 ├── Universal_QR_GUI_Debug.bat
 ├── README.md
+├── LICENSE
 └── .gitignore
 ```
 
@@ -75,22 +259,78 @@ For troubleshooting:
 Universal_QR_GUI_Debug.bat
 ```
 
-The debug launcher keeps the PowerShell console visible.
+The debug launcher keeps the PowerShell console visible and enables additional diagnostic output.
 
 ## Requirements
 
 - Windows 10 / 11
 - Windows PowerShell 5.1 or newer
 - WPF / .NET Framework available
-- Internet connection for QR generation and the optional read test
 
 No external PowerShell modules are required.
+
+### Internet connection
+
+An Internet connection is **not required for local QR generation**.
+
+Internet access is only required when using:
+
+- QRServer / goQR.me generation
+- a custom online QR API
+- online fallback
+- automatic online readability testing
+- manual online QR verification
+
+## Portable operation
+
+The application is designed to be portable and can be copied to another folder or USB drive.
+
+Application data is stored inside the project directory instead of `%APPDATA%`.
+
+Default local folders:
+
+```text
+config/
+output/
+temp/
+```
+
+Settings are stored in:
+
+```text
+config/settings.json
+```
+
+Paths inside the project can be stored relatively so moving the application to another drive does not break the configuration.
+
+Generated output and runtime settings are ignored by Git by default.
+
+## Language
+
+Included languages:
+
+- Deutsch
+- English
+- Automatic / Windows language detection
+
+Locale files:
+
+```text
+locales/de.json
+locales/en.json
+```
+
+The localization system is designed so additional languages can be added without maintaining a separate XAML interface for every language.
 
 ## Logo
 
 No logo is shipped with the project.
 
-Click **Logo wählen** to select your own PNG, JPG, JPEG or BMP image.
+Use the logo selector in the application to choose your own:
+
+- PNG
+- JPG / JPEG
+- BMP
 
 Recommended:
 
@@ -98,27 +338,76 @@ Recommended:
 - logo size around `16 %`
 - error correction `H`
 
-When a logo is enabled, the application automatically switches ECC to `H` during generation.
+When a logo is enabled, the application automatically uses ECC `H` during generation.
 
-## QR service
+## QR providers
 
-QR generation currently uses:
+### Local / Offline
+
+Recommended for:
+
+- sensitive data
+- Wi-Fi credentials
+- vCards
+- Unicode content
+- offline environments
+- portable USB operation
+
+No QR payload needs to leave the computer during generation.
+
+### QRServer / goQR.me
+
+Built-in compatible endpoints:
 
 ```text
 https://api.qrserver.com/v1/create-qr-code/
 ```
 
-The optional read test uses:
+Read API:
 
 ```text
 https://api.qrserver.com/v1/read-qr-code/
 ```
 
+### Custom API
+
+A custom provider can be configured if it uses the same basic HTTP contract as QRServer.
+
+Create endpoint:
+
+- `POST`
+- `application/x-www-form-urlencoded`
+- compatible fields such as `data`, `size`, `ecc`, `color`, `bgcolor`, `qzone`, `format`
+
+Read endpoint:
+
+- `POST`
+- `multipart/form-data`
+- image field `file`
+- `outputformat=json`
+- QRServer-compatible JSON response
+
+An API using a different schema, authentication mechanism or response format needs a provider adapter in `QRCore.ps1`.
+
 ## Privacy
 
-QR content is sent to the external QRServer service for generation.
+### Local generation
 
-If the readability test is enabled, the generated QR image is also uploaded to the service.
+When using the local engine without an online read test:
+
+```text
+QR payload → local QR engine → PNG
+```
+
+The QR content does not need to be sent to an external QR generation service.
+
+### Online generation / fallback
+
+When QRServer, a custom online provider or online fallback is used, the QR payload is transmitted to the configured service.
+
+### Online readability test
+
+When automatic or manual online verification is used, the generated QR image is uploaded to the configured read service.
 
 This is important for sensitive payloads such as:
 
@@ -127,7 +416,7 @@ This is important for sensitive payloads such as:
 - private URLs
 - internal notes
 
-A future version could replace the API with a fully local QR encoder.
+The GUI indicates when an online service is used or when an online verification cannot be completed.
 
 ## Recommended print settings
 
@@ -143,95 +432,33 @@ This project is licensed under the MIT License.
 
 See the [LICENSE](LICENSE) file for details.
 
+---
 
-## v2.1 fixes
+# Version history
 
-- Reworked the left QR-type navigation with fixed-width Segoe MDL2 glyphs.
-- Fixed clipped / uneven navigation icons.
-- Fixed unreadable selected values in WPF ComboBoxes on Windows themes that render a light selection field.
-- Fixed QR preview caching when overwriting the same PNG file repeatedly.
-- QR preview images are now loaded from fresh file bytes instead of a cached file URI.
+## v2.5 — Local / Offline QR engine
 
-
-## v2.2
-
-- Added a dedicated settings dialog.
-- Default output directory can now be selected and is remembered.
-- Default QR size can be configured globally.
-- Default ECC can be configured globally.
-- Automatic readability test can be enabled / disabled globally.
-- Optional automatic opening of the generated QR image.
-- Added a QR provider setting and provider abstraction.
-- QRServer / goQR.me is currently the only implemented provider.
-- Application settings are persisted in:
-
-```text
-%APPDATA%\UniversalQRCodeGenerator\settings.json
-```
-
-- Simplified the footer: the current QR type and API provider are no longer shown there.
-- The right-hand settings area now shows a compact summary and links to the settings dialog.
-
-
-## v2.3
-
-- Navigation buttons now use a dedicated left-aligned WPF template.
-- Icons and labels have fixed columns and no longer appear centered inside the sidebar.
-- Visible scrollbars are hidden in the main UI; mouse-wheel and touchpad scrolling remain available.
-- Settings window redesigned into three clean cards without a visible scrollbar.
-- Added `Standardwerte` reset button.
-- Added editable API endpoints.
-- Provider options:
-  - `QRServer / goQR.me (Standard)`
-  - `Benutzerdefiniert (QRServer-kompatibel)`
-- Custom provider settings include:
-  - Create API endpoint
-  - Read API endpoint
-- No PowerShell source edit is needed to change compatible API endpoints.
-
-### Custom API compatibility
-
-The custom provider currently expects the same HTTP contract as QRServer:
-
-**Create endpoint**
-- `POST`
-- `application/x-www-form-urlencoded`
-- fields such as `data`, `size`, `ecc`, `color`, `bgcolor`, `qzone`, `format`
-
-**Read endpoint**
-- `POST`
-- `multipart/form-data`
-- image field `file`
-- `outputformat=json`
-- QRServer-compatible JSON response
-
-An API using a different schema, authentication mechanism or response format needs a provider adapter in `QRCore.ps1`.
-
-
-## v2.3.1 hotfix
-
-- Fixed a WPF XAML crash when opening the settings dialog.
-- The cause was an invalid `Margin="0,0,auto,0"` value.
-- Replaced the settings action row with a proper three-column Grid.
-- Added defensive error handling around dynamic settings-XAML loading.
-- Added package-time validation for invalid `Margin` and `Padding` values.
-
-
-## v2.3.2 hotfix
-
-- Settings content can be scrolled again with mouse wheel / touchpad.
-- The settings scrollbar stays visually hidden to keep the clean UI.
-- Settings buttons now use the same rounded WPF style as the main application.
-- Added hover, pressed and disabled visual states to settings buttons.
-
-
-## v2.3.3 hotfix
-
-- Fixed `ArgumentNullException` / `Der Schlüssel darf nicht NULL sein` when refreshing the QR preview.
-- The error occurred during `BitmapImage.EndInit()` after generating a QR code.
-- Removed `BitmapCreateOptions.IgnoreImageCache` from stream-based image loading.
-- QR previews still bypass stale file-URI caching because every preview is loaded from fresh file bytes into a new memory stream.
-
+- Added built-in local QR generation engine.
+- Added `src/LocalQrEngine.cs`.
+- Local generation no longer requires an online QR generation provider.
+- Supports QR versions 1–40.
+- Supports ECC `L`, `M`, `Q`, `H`.
+- Added UTF-8 / ECI handling for Unicode content.
+- Added automatic mask selection.
+- Added optional online fallback when local generation fails.
+- QRServer and custom compatible APIs remain available as direct providers.
+- Added manual online QR readability testing.
+- Automatic online readability testing is now independent from successful local generation.
+- A failed optional online read test no longer invalidates an already generated local QR.
+- Added Unicode guard for online generation.
+- Unicode guard can temporarily use local-first generation without changing the saved provider setting.
+- Added charset ambiguity detection for known online-reader encoding mismatches.
+- Added detailed debug diagnostics.
+- Added network error classification for DNS, connection, timeout, TLS and provider problems.
+- Debug output avoids logging QR payload contents.
+- Improved user-facing error messages with separate problem, recommendation and technical details.
+- Prevented manual verification of an outdated QR after a failed new generation attempt.
+- Improved status reporting for local generation, online fallback and verification.
 
 ## v2.4 — Portable configuration & languages
 
@@ -247,21 +474,53 @@ An API using a different schema, authentication mechanism or response format nee
 - Temporary logo/read-test images use the local `temp/` folder rather than Windows `%TEMP%`.
 - `config/settings.json`, generated output and temporary files are excluded from Git by default.
 
-### Portable layout
+## v2.3.3 hotfix
 
-```text
-QR_Code-Generator-with-UI/
-├── src/
-├── assets/
-├── locales/
-│   ├── de.json
-│   └── en.json
-├── config/
-│   └── settings.json       # created locally, ignored by Git
-├── output/                 # default QR destination
-├── temp/                   # temporary runtime files
-├── Universal_QR_GUI_Starten.vbs
-└── Universal_QR_GUI_Debug.bat
-```
+- Fixed `ArgumentNullException` / `Der Schlüssel darf nicht NULL sein` when refreshing the QR preview.
+- The error occurred during `BitmapImage.EndInit()` after generating a QR code.
+- Removed `BitmapCreateOptions.IgnoreImageCache` from stream-based image loading.
+- QR previews still bypass stale file-URI caching because every preview is loaded from fresh file bytes into a new memory stream.
 
-The application can therefore be copied to and launched from a USB drive without relying on `%APPDATA%` for its own settings. QR generation itself still uses the configured external provider until a future local/offline QR engine is added.
+## v2.3.2 hotfix
+
+- Settings content can be scrolled again with mouse wheel / touchpad.
+- The settings scrollbar stays visually hidden to keep the clean UI.
+- Settings buttons now use the same rounded WPF style as the main application.
+- Added hover, pressed and disabled visual states to settings buttons.
+
+## v2.3.1 hotfix
+
+- Fixed a WPF XAML crash when opening the settings dialog.
+- The cause was an invalid `Margin="0,0,auto,0"` value.
+- Replaced the settings action row with a proper three-column Grid.
+- Added defensive error handling around dynamic settings-XAML loading.
+- Added package-time validation for invalid `Margin` and `Padding` values.
+
+## v2.3
+
+- Navigation buttons now use a dedicated left-aligned WPF template.
+- Icons and labels have fixed columns and no longer appear centered inside the sidebar.
+- Visible scrollbars are hidden in the main UI; mouse-wheel and touchpad scrolling remain available.
+- Settings window redesigned into three clean cards without a visible scrollbar.
+- Added `Standardwerte` reset button.
+- Added editable API endpoints.
+- Added QRServer / goQR.me and QRServer-compatible custom provider options.
+
+## v2.2
+
+- Added a dedicated settings dialog.
+- Default output directory can be selected and remembered.
+- Default QR size can be configured globally.
+- Default ECC can be configured globally.
+- Automatic readability testing can be enabled / disabled globally.
+- Optional automatic opening of the generated QR image.
+- Added provider configuration and provider abstraction.
+- Simplified the footer and settings summary.
+
+## v2.1 fixes
+
+- Reworked the left QR-type navigation with fixed-width Segoe MDL2 glyphs.
+- Fixed clipped / uneven navigation icons.
+- Fixed unreadable selected values in WPF ComboBoxes on some Windows themes.
+- Fixed QR preview caching when overwriting the same PNG file repeatedly.
+- QR preview images are loaded from fresh file bytes instead of a cached file URI.

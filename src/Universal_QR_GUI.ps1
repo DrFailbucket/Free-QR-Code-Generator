@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 <#
     Universal QR-Code Generator
-    WPF v2.4
+    WPF v2.5
 #>
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +26,322 @@ $IconFile = Join-Path $ProjectRoot "assets\Universal_QR_GUI.ico"
 $Script:Mode = "vCard"
 $Script:LogoPath = $null
 $Script:GeneratedQrPath = $null
+$Script:GeneratedQrData = $null
+
+# Debug output is opt-in and enabled only by Universal_QR_GUI_Debug.bat.
+# The normal VBS launcher does not set this environment variable and stays quiet.
+$Script:DebugMode = ([string]$env:UQRG_DEBUG -eq "1")
+
+function Write-DebugLog {
+    param(
+        [Parameter(Mandatory=$true)][string]$Component,
+        [Parameter(Mandatory=$true)][string]$Message,
+        [ValidateSet("Info","Ok","Warn","Error")][string]$Level = "Info"
+    )
+
+    if (-not $Script:DebugMode) { return }
+
+    $timestamp = Get-Date -Format "HH:mm:ss.fff"
+    $prefix = "[{0}] {1,-18}: " -f $timestamp, $Component
+    $color = switch ($Level) {
+        "Ok"    { "Green" }
+        "Warn"  { "Yellow" }
+        "Error" { "Red" }
+        default { "Cyan" }
+    }
+
+    Write-Host -NoNewline $prefix -ForegroundColor DarkGray
+    Write-Host $Message -ForegroundColor $color
+}
+
+function Get-ErrorDiagnostic {
+    param($ErrorObject)
+
+    $exception = $null
+    if ($ErrorObject -is [System.Management.Automation.ErrorRecord]) {
+        $exception = $ErrorObject.Exception
+    }
+    elseif ($ErrorObject -is [System.Exception]) {
+        $exception = $ErrorObject
+    }
+    elseif ($null -ne $ErrorObject -and $null -ne $ErrorObject.Exception) {
+        $exception = $ErrorObject.Exception
+    }
+
+    if ($null -eq $exception) {
+        return [PSCustomObject]@{
+            Category = "Unknown"
+            Summary = "Unknown error"
+            Advice = "No exception details were available."
+            Technical = [string]$ErrorObject
+        }
+    }
+
+    $chain = [System.Collections.Generic.List[System.Exception]]::new()
+    $cursor = $exception
+    $guard = 0
+    while ($null -ne $cursor -and $guard -lt 10) {
+        $chain.Add($cursor)
+        $cursor = $cursor.InnerException
+        $guard++
+    }
+
+    $technicalParts = @()
+    foreach ($item in $chain) {
+        $technicalParts += ($item.GetType().FullName + ": " + $item.Message)
+    }
+    $technical = $technicalParts -join " -> "
+    $combined = ($technicalParts -join " | ")
+
+    $category = "Unexpected"
+    $summary = "The operation could not be completed because an unexpected Windows or application error occurred"
+    $advice = "Try the operation again. If the problem repeats, use the Technical and Location lines when reporting the issue."
+
+    # Prefer structured network status information when an inner exception exposes it.
+    foreach ($item in $chain) {
+        if ($item.PSObject.Properties.Name -contains "Status") {
+            $status = [string]$item.Status
+            switch ($status) {
+                "NameResolutionFailure" {
+                    $category = "DNS"
+                    $summary = "Host name could not be resolved (DNS / no network connection)"
+                    $advice = "Check Internet/VPN connectivity and DNS resolution, then try again."
+                    break
+                }
+                "ProxyNameResolutionFailure" {
+                    $category = "ProxyDNS"
+                    $summary = "Configured proxy could not be resolved"
+                    $advice = "Check the Windows proxy configuration or disable the proxy for this connection."
+                    break
+                }
+                "ConnectFailure" {
+                    $category = "Connection"
+                    $summary = "Connection to the online QR service could not be established"
+                    $advice = "The PC may be offline, the server may be unreachable, or a firewall/VPN may block the connection."
+                    break
+                }
+                "Timeout" {
+                    $category = "Timeout"
+                    $summary = "The online QR service did not respond before the timeout"
+                    $advice = "Check the network connection and try again. The provider may also be temporarily slow or unavailable."
+                    break
+                }
+                "TrustFailure" {
+                    $category = "TLS"
+                    $summary = "TLS certificate validation failed"
+                    $advice = "Check Windows date/time, certificates, HTTPS inspection, proxy and security software."
+                    break
+                }
+                "SecureChannelFailure" {
+                    $category = "TLS"
+                    $summary = "A secure TLS connection to the provider could not be established"
+                    $advice = "Check TLS/certificate settings, Windows date/time, proxy and security software."
+                    break
+                }
+                "ConnectionClosed" {
+                    $category = "ConnectionClosed"
+                    $summary = "The remote service closed the connection unexpectedly"
+                    $advice = "Retry the request. If it persists, the provider or an intermediate proxy/firewall may be closing the connection."
+                    break
+                }
+                "SendFailure" {
+                    $category = "SendFailure"
+                    $summary = "The request could not be sent to the online provider"
+                    $advice = "Check Internet/VPN connectivity, firewall rules and whether the provider is reachable."
+                    break
+                }
+                "ReceiveFailure" {
+                    $category = "ReceiveFailure"
+                    $summary = "The connection was made, but the provider response could not be received"
+                    $advice = "Retry the request and check whether a proxy/firewall or provider outage is interrupting the response."
+                    break
+                }
+            }
+        }
+
+        if ($category -eq "Unexpected" -and ($item.PSObject.Properties.Name -contains "SocketErrorCode")) {
+            $socketCode = [string]$item.SocketErrorCode
+            switch ($socketCode) {
+                "HostNotFound" {
+                    $category = "DNS"
+                    $summary = "Host name could not be resolved (DNS)"
+                    $advice = "Check Internet/VPN connectivity and DNS resolution."
+                    break
+                }
+                "NetworkDown" {
+                    $category = "NetworkDown"
+                    $summary = "Windows reports that the network is down"
+                    $advice = "Reconnect Wi-Fi/Ethernet/VPN before using an online provider or read test."
+                    break
+                }
+                "NetworkUnreachable" {
+                    $category = "NetworkUnreachable"
+                    $summary = "No network route to the online provider is available"
+                    $advice = "Check Wi-Fi/Ethernet/VPN and routing."
+                    break
+                }
+                "ConnectionRefused" {
+                    $category = "ConnectionRefused"
+                    $summary = "The remote host actively refused the connection"
+                    $advice = "The provider endpoint may be unavailable or the port may be blocked."
+                    break
+                }
+                "TimedOut" {
+                    $category = "Timeout"
+                    $summary = "Network connection timed out"
+                    $advice = "Check connectivity and retry later if the provider is slow or unavailable."
+                    break
+                }
+            }
+        }
+    }
+
+    if ($combined -match "Local QR engine source file not found") {
+        $category = "LocalEngineMissing"
+        $summary = "Local QR engine file is missing"
+        $advice = "Restore src\LocalQrEngine.cs. If online fallback is enabled, the configured fallback provider can still be used."
+    }
+    elseif ($combined -match "Local QR engine could not be loaded") {
+        $category = "LocalEngineLoad"
+        $summary = "Local QR engine could not be compiled or loaded"
+        $advice = "Check the following technical compiler/loader message. The online fallback may still be used when enabled."
+    }
+    elseif ($combined -match "(?i)timed out|timeout|Zeitüberschreitung") {
+        $category = "Timeout"
+        $summary = "The online request timed out"
+        $advice = "Check connectivity and retry. The provider may be temporarily unavailable."
+    }
+    elseif ($combined -match "(?i)certificate|zertifikat|SSL|TLS|secure channel|sicher.*kanal") {
+        $category = "TLS"
+        $summary = "The secure HTTPS/TLS connection failed"
+        $advice = "Check Windows date/time, certificates, proxy/VPN and HTTPS inspection software."
+    }
+    elseif ($combined -match "(?i)name.*resol|remote.*name|remotename|aufgelöst|DNS|host.*known") {
+        $category = "DNS"
+        $summary = "The provider host name could not be resolved"
+        $advice = "The PC may be offline or DNS may be unavailable. Check Wi-Fi/Ethernet/VPN and DNS."
+    }
+    elseif ($combined -match "(?i)Fehler beim Senden der Anforderung|error while sending the request|connection|Verbindung") {
+        $category = "Connection"
+        $summary = "The request could not reach the online QR service"
+        $advice = "Check Internet/VPN connectivity, firewall/proxy settings and provider availability."
+    }
+    elseif ($combined -match "(?i)HTTP-Fehler: 401|HTTP-Fehler: 403") {
+        $category = "Authorization"
+        $summary = "The online provider rejected the request (HTTP authorization error)"
+        $advice = "Check endpoint permissions, authentication requirements and provider configuration."
+    }
+    elseif ($combined -match "(?i)HTTP-Fehler: 429") {
+        $category = "RateLimit"
+        $summary = "The online provider rate-limited the request (HTTP 429)"
+        $advice = "Wait before retrying or use another provider."
+    }
+    elseif ($combined -match "(?i)HTTP-Fehler: 5[0-9][0-9]") {
+        $category = "ProviderServer"
+        $summary = "The online provider returned a server error"
+        $advice = "The provider is likely temporarily unavailable. Retry later or use another provider."
+    }
+    elseif ($combined -match "(?i)HTTP-Fehler: 4[0-9][0-9]") {
+        $category = "ProviderRequest"
+        $summary = "The online provider rejected the request with an HTTP client error"
+        $advice = "Check the configured endpoint and whether the provider still supports the expected QRServer-compatible API."
+    }
+    elseif ($combined -match "(?i)ConvertFrom-Json|JSON|unexpected character|ungültige.*antwort") {
+        $category = "ProviderResponse"
+        $summary = "The online provider returned an unexpected or invalid response"
+        $advice = "The endpoint may not be QRServer-compatible, or the provider may currently return an error page instead of JSON."
+    }
+    elseif ($combined -match "(?i)keine plausible PNG|plausible PNG") {
+        $category = "ProviderResponse"
+        $summary = "The online provider did not return a valid QR PNG image"
+        $advice = "Check the create endpoint and provider compatibility."
+    }
+    elseif ($combined -match "(?i)Ungültiger .*API-Endpunkt|invalid .*endpoint") {
+        $category = "Configuration"
+        $summary = "The configured API endpoint is invalid"
+        $advice = "Open Settings and verify the configured create/read endpoint."
+    }
+    elseif ($combined -match "(?i)QR payload is too large|payload exceeds.*capacity|version 40") {
+        $category = "PayloadTooLarge"
+        $summary = "The QR content is too large for the selected error-correction requirements"
+        $advice = "Shorten the QR content. For very large payloads, also try a lower ECC level when no logo is used."
+    }
+    elseif ($combined -match "(?i)PNG size is too small|requested PNG size is too small") {
+        $category = "RenderSize"
+        $summary = "The selected image size is too small for this QR code"
+        $advice = "Increase the QR output size in Settings and try again."
+    }
+    elseif ($combined -match "(?i)returned no matrix") {
+        $category = "LocalEngineResult"
+        $summary = "The local QR engine did not return a usable QR matrix"
+        $advice = "Retry once. If the error repeats, use the online fallback and report the Technical details."
+    }
+    elseif ($combined -match "(?i)Parametersatz.*benannten Parametern|parameter set cannot be resolved") {
+        $category = "PowerShellCompatibility"
+        $summary = "Windows PowerShell could not execute an internal command with the supplied parameters"
+        $advice = "This is usually a compatibility/programming issue rather than bad QR data. Report the Technical and Location lines."
+    }
+    elseif ($combined -match "(?i)Schlüssel darf nicht NULL sein|key cannot be null|Value cannot be null.*key") {
+        $category = "InternalState"
+        $summary = "The application encountered an invalid internal state while processing the QR image"
+        $advice = "Retry the operation. If it repeats, report the Technical and Location lines; your entered QR data is usually not the cause."
+    }
+    elseif ($combined -match "(?i)generic error occurred in GDI\+|GDI\+|Parameter is not valid.*image|image.*invalid") {
+        $category = "ImageProcessing"
+        $summary = "Windows could not process or save the QR/logo image"
+        $advice = "Check that the logo is a valid PNG/JPG/BMP, the output folder is writable, and the target PNG is not locked by another program."
+    }
+    elseif ($combined -match "(?i)path too long|Pfad.*zu lang") {
+        $category = "PathTooLong"
+        $summary = "The selected file path is too long for this Windows/PowerShell operation"
+        $advice = "Choose a shorter output folder or filename and try again."
+    }
+    elseif ($combined -match "(?i)DirectoryNotFound|Verzeichnis.*nicht gefunden|Could not find a part of the path") {
+        $category = "FolderMissing"
+        $summary = "A required folder could not be found"
+        $advice = "Check the application/output folder and make sure the portable project structure is complete."
+    }
+    elseif ($combined -match "(?i)FileNotFound|Datei.*nicht gefunden|file not found|Bilddatei nicht gefunden|QR-Datei nicht gefunden|Logo-Datei nicht gefunden") {
+        $category = "FileMissing"
+        $summary = "A required file could not be found"
+        $advice = "Check the file path. If this concerns a logo, select the logo again; if it concerns the local engine, restore the complete src folder."
+    }
+    elseif ($combined -match "(?i)disk full|Datenträger.*voll|not enough space|nicht genügend Speicherplatz") {
+        $category = "DiskFull"
+        $summary = "Windows could not save the file because the target drive may be full"
+        $advice = "Free disk space or select another output location."
+    }
+    elseif ($combined -match "(?i)Zugriff.*verweigert|access.*denied|UnauthorizedAccess") {
+        $category = "FileAccess"
+        $summary = "Windows denied access to a required file or folder"
+        $advice = "Check write permissions and whether security software is blocking the application directory."
+    }
+    elseif ($combined -match "(?i)IOException|E/A-Fehler|I/O error") {
+        $category = "FileIO"
+        $summary = "Windows reported a file read/write error"
+        $advice = "Check that the output drive is connected and writable and that the target file is not open or locked by another application."
+    }
+
+    return [PSCustomObject]@{
+        Category = $category
+        Summary = $summary
+        Advice = $advice
+        Technical = $technical
+    }
+}
+
+function Write-DebugException {
+    param(
+        [Parameter(Mandatory=$true)][string]$Component,
+        [Parameter(Mandatory=$true)]$ErrorObject
+    )
+
+    $diag = Get-ErrorDiagnostic $ErrorObject
+    Write-DebugLog $Component ("FAILED [{0}] | {1}" -f $diag.Category, $diag.Summary) "Error"
+    Write-DebugLog "What to do" $diag.Advice "Warn"
+    Write-DebugLog "Technical" $diag.Technical "Error"
+    return $diag
+}
 
 # Portable paths: all persistent and temporary app data stays beside the app.
 $Script:ConfigDir = Join-Path $ProjectRoot "config"
@@ -40,8 +356,11 @@ $Script:Settings = [ordered]@{
     QrSize = 1000
     Ecc = "H"
     RunReadTest = $true
+    RunOnlineReadTestForLocal = $false
     OpenAfterCreate = $false
-    Provider = "qrserver"
+    Provider = "local"
+    UseOnlineFallback = $true
+    FallbackProvider = "qrserver"
     CustomCreateEndpoint = "https://api.qrserver.com/v1/create-qr-code/"
     CustomReadEndpoint = "https://api.qrserver.com/v1/read-qr-code/"
 }
@@ -194,11 +513,20 @@ function Load-AppSettings {
             if ($null -ne $loaded.RunReadTest) {
                 $Script:Settings.RunReadTest = [bool]$loaded.RunReadTest
             }
+            if ($null -ne $loaded.RunOnlineReadTestForLocal) {
+                $Script:Settings.RunOnlineReadTestForLocal = [bool]$loaded.RunOnlineReadTestForLocal
+            }
             if ($null -ne $loaded.OpenAfterCreate) {
                 $Script:Settings.OpenAfterCreate = [bool]$loaded.OpenAfterCreate
             }
-            if ([string]$loaded.Provider -in @("qrserver","custom")) {
+            if ([string]$loaded.Provider -in @("local","qrserver","custom")) {
                 $Script:Settings.Provider = [string]$loaded.Provider
+            }
+            if ($null -ne $loaded.UseOnlineFallback) {
+                $Script:Settings.UseOnlineFallback = [bool]$loaded.UseOnlineFallback
+            }
+            if ([string]$loaded.FallbackProvider -in @("qrserver","custom")) {
+                $Script:Settings.FallbackProvider = [string]$loaded.FallbackProvider
             }
             if (-not [string]::IsNullOrWhiteSpace([string]$loaded.CustomCreateEndpoint)) {
                 $Script:Settings.CustomCreateEndpoint = [string]$loaded.CustomCreateEndpoint
@@ -235,12 +563,62 @@ function Save-AppSettings {
 function Update-SettingsSummary {
     $SummarySize.Text = [string]$Script:Settings.QrSize + " px"
     $SummaryEcc.Text = [string]$Script:Settings.Ecc
-    $SummaryReadTest.Text = if ($Script:Settings.RunReadTest) { T "common.on" } else { T "common.off" }
+    if (-not [bool]$Script:Settings.RunReadTest) {
+        $SummaryReadTest.Text = T "common.off"
+    }
+    elseif ($Script:Settings.Provider -eq "local" -and -not [bool]$Script:Settings.RunOnlineReadTestForLocal) {
+        $SummaryReadTest.Text = T "summary.readtestFallbackOnly"
+    }
+    elseif ($Script:Settings.Provider -eq "local") {
+        $SummaryReadTest.Text = T "summary.readtestOnlineAllowed"
+    }
+    else {
+        $SummaryReadTest.Text = T "common.on"
+    }
 
     switch ($Script:Settings.Provider) {
-        "qrserver" { $SummaryProvider.Text = T "provider.qrserver" }
-        "custom"   { $SummaryProvider.Text = T "provider.custom" }
-        default    { $SummaryProvider.Text = [string]$Script:Settings.Provider }
+        "local" {
+            $SummaryProvider.Text = T "provider.local"
+            if ([bool]$Script:Settings.UseOnlineFallback) {
+                $fallbackLabel = if ($Script:Settings.FallbackProvider -eq "custom") {
+                    T "provider.custom"
+                }
+                else {
+                    T "provider.qrserver"
+                }
+                $SummaryProvider.ToolTip = T "summary.localFallback" @{ provider = $fallbackLabel }
+            }
+            else {
+                $SummaryProvider.ToolTip = T "summary.localOnly"
+            }
+        }
+        "qrserver" {
+            $SummaryProvider.Text = T "provider.qrserver"
+            $SummaryProvider.ToolTip = T "settings.externalWarning"
+        }
+        "custom" {
+            $SummaryProvider.Text = T "provider.custom"
+            $SummaryProvider.ToolTip = T "settings.externalWarning"
+        }
+        default {
+            $SummaryProvider.Text = [string]$Script:Settings.Provider
+            $SummaryProvider.ToolTip = $null
+        }
+    }
+
+    $wifiNoticeControl = Get-Variable -Name WifiNotice -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    if ($null -ne $wifiNoticeControl) {
+        if ($Script:Settings.Provider -eq "local") {
+            if ([bool]$Script:Settings.UseOnlineFallback) {
+                $wifiNoticeControl.Text = T "wifi.notice.localFallback"
+            }
+            else {
+                $wifiNoticeControl.Text = T "wifi.notice.local"
+            }
+        }
+        else {
+            $wifiNoticeControl.Text = T "wifi.notice.external"
+        }
     }
 
     $FooterSize.Text = [string]$Script:Settings.QrSize + " px"
@@ -297,6 +675,29 @@ function Set-ApplicationLanguage {
         Update-ModeText
         Update-SettingsSummary
         Refresh-StatusLanguage
+    }
+}
+
+
+function Get-OnlineProviderEndpoints {
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet("qrserver","custom")][string]$Provider
+    )
+
+    if ($Provider -eq "custom") {
+        return [PSCustomObject]@{
+            Provider = "custom"
+            DisplayName = (T "provider.custom")
+            CreateEndpoint = [string]$Script:Settings.CustomCreateEndpoint
+            ReadEndpoint = [string]$Script:Settings.CustomReadEndpoint
+        }
+    }
+
+    return [PSCustomObject]@{
+        Provider = "qrserver"
+        DisplayName = (T "provider.qrserver")
+        CreateEndpoint = "https://api.qrserver.com/v1/create-qr-code/"
+        ReadEndpoint = "https://api.qrserver.com/v1/read-qr-code/"
     }
 }
 
@@ -385,13 +786,32 @@ function Show-SettingsDialog {
                     <StackPanel>
                         <TextBlock Text="{DynamicResource settings.service}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,11"/>
                         <TextBlock Text="{DynamicResource settings.provider}" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
-                        <ComboBox x:Name="SettingsProvider"><ComboBoxItem Tag="qrserver" Content="{DynamicResource provider.qrserver.full}"/><ComboBoxItem Tag="custom" Content="{DynamicResource provider.custom.full}"/></ComboBox>
+                        <ComboBox x:Name="SettingsProvider">
+                            <ComboBoxItem Tag="local" Content="{DynamicResource provider.local.full}"/>
+                            <ComboBoxItem Tag="qrserver" Content="{DynamicResource provider.qrserver.full}"/>
+                            <ComboBoxItem Tag="custom" Content="{DynamicResource provider.custom.full}"/>
+                        </ComboBox>
+
+                        <StackPanel x:Name="LocalProviderPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                            <TextBlock Text="{DynamicResource settings.localHelp}" Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12"/>
+                            <CheckBox x:Name="SettingsUseFallback" Content="{DynamicResource settings.useFallback}" Margin="0,12,0,0"/>
+                            <TextBlock Text="{DynamicResource settings.fallbackProvider}" Foreground="{StaticResource Muted}" Margin="0,10,0,6"/>
+                            <ComboBox x:Name="SettingsFallbackProvider">
+                                <ComboBoxItem Tag="qrserver" Content="{DynamicResource provider.qrserver.full}"/>
+                                <ComboBoxItem Tag="custom" Content="{DynamicResource provider.custom.full}"/>
+                            </ComboBox>
+                            <CheckBox x:Name="SettingsOnlineReadTestLocal" Content="{DynamicResource settings.onlineReadTestLocal}" Margin="0,12,0,0"/>
+                            <TextBlock Text="{DynamicResource settings.onlineReadTestLocalHelp}" Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,6,0,0"/>
+                        </StackPanel>
+
                         <StackPanel x:Name="CustomProviderPanel" Margin="0,12,0,0" Visibility="Collapsed">
                             <TextBlock Text="{DynamicResource settings.createEndpoint}" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/><TextBox x:Name="SettingsCreateEndpoint"/>
                             <TextBlock Text="{DynamicResource settings.readEndpoint}" Foreground="{StaticResource Muted}" Margin="0,11,0,6"/><TextBox x:Name="SettingsReadEndpoint"/>
                             <TextBlock Text="{DynamicResource settings.customHelp}" Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,9,0,0"/>
                         </StackPanel>
-                        <TextBlock Text="{DynamicResource settings.externalWarning}" Foreground="#F6C453" TextWrapping="Wrap" FontSize="12" Margin="0,10,0,0"/>
+
+                        <TextBlock x:Name="LocalPrivacyNote" Text="{DynamicResource settings.localPrivacy}" Foreground="#62D9A6" TextWrapping="Wrap" FontSize="12" Margin="0,10,0,0" Visibility="Collapsed"/>
+                        <TextBlock x:Name="ExternalPrivacyNote" Text="{DynamicResource settings.externalWarning}" Foreground="#F6C453" TextWrapping="Wrap" FontSize="12" Margin="0,10,0,0" Visibility="Collapsed"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -425,7 +845,13 @@ function Show-SettingsDialog {
     $eccBox = $dialog.FindName("SettingsEcc")
     $readTest = $dialog.FindName("SettingsReadTest")
     $providerBox = $dialog.FindName("SettingsProvider")
+    $localPanel = $dialog.FindName("LocalProviderPanel")
+    $fallbackCheck = $dialog.FindName("SettingsUseFallback")
+    $fallbackProviderBox = $dialog.FindName("SettingsFallbackProvider")
+    $onlineReadTestLocal = $dialog.FindName("SettingsOnlineReadTestLocal")
     $customPanel = $dialog.FindName("CustomProviderPanel")
+    $localPrivacyNote = $dialog.FindName("LocalPrivacyNote")
+    $externalPrivacyNote = $dialog.FindName("ExternalPrivacyNote")
     $createEndpoint = $dialog.FindName("SettingsCreateEndpoint")
     $readEndpoint = $dialog.FindName("SettingsReadEndpoint")
     $reset = $dialog.FindName("SettingsReset")
@@ -435,6 +861,8 @@ function Show-SettingsDialog {
     $output.Text = $Script:OutputDir
     $openAfter.IsChecked = [bool]$Script:Settings.OpenAfterCreate
     $readTest.IsChecked = [bool]$Script:Settings.RunReadTest
+    $fallbackCheck.IsChecked = [bool]$Script:Settings.UseOnlineFallback
+    $onlineReadTestLocal.IsChecked = [bool]$Script:Settings.RunOnlineReadTestForLocal
     $createEndpoint.Text = [string]$Script:Settings.CustomCreateEndpoint
     $readEndpoint.Text = [string]$Script:Settings.CustomReadEndpoint
 
@@ -442,16 +870,38 @@ function Show-SettingsDialog {
     foreach ($item in $sizeBox.Items) { if ([string]$item.Content -eq ([string]$Script:Settings.QrSize + " px")) { $sizeBox.SelectedItem = $item; break } }
     foreach ($item in $eccBox.Items) { if ([string]$item.Content -eq [string]$Script:Settings.Ecc) { $eccBox.SelectedItem = $item; break } }
     foreach ($item in $providerBox.Items) { if ([string]$item.Tag -eq [string]$Script:Settings.Provider) { $providerBox.SelectedItem = $item; break } }
+    foreach ($item in $fallbackProviderBox.Items) { if ([string]$item.Tag -eq [string]$Script:Settings.FallbackProvider) { $fallbackProviderBox.SelectedItem = $item; break } }
     if ($null -eq $languageBox.SelectedItem) { $languageBox.SelectedIndex = 0 }
     if ($null -eq $sizeBox.SelectedItem) { $sizeBox.SelectedIndex = 4 }
     if ($null -eq $eccBox.SelectedItem) { $eccBox.SelectedIndex = 3 }
     if ($null -eq $providerBox.SelectedItem) { $providerBox.SelectedIndex = 0 }
+    if ($null -eq $fallbackProviderBox.SelectedItem) { $fallbackProviderBox.SelectedIndex = 0 }
 
     $updateProviderPanel = {
-        if ($null -ne $providerBox.SelectedItem -and [string]$providerBox.SelectedItem.Tag -eq "custom") { $customPanel.Visibility = [System.Windows.Visibility]::Visible }
-        else { $customPanel.Visibility = [System.Windows.Visibility]::Collapsed }
+        $providerTag = if ($null -ne $providerBox.SelectedItem) { [string]$providerBox.SelectedItem.Tag } else { "local" }
+        $fallbackTag = if ($null -ne $fallbackProviderBox.SelectedItem) { [string]$fallbackProviderBox.SelectedItem.Tag } else { "qrserver" }
+        $isLocal = $providerTag -eq "local"
+        $fallbackEnabled = [bool]$fallbackCheck.IsChecked
+        $onlineLocalReadEnabled = [bool]$readTest.IsChecked -and [bool]$onlineReadTestLocal.IsChecked
+
+        $localPanel.Visibility = if ($isLocal) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+        $localPrivacyNote.Visibility = if ($isLocal) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+        $externalPrivacyNote.Visibility = if ($isLocal) { [System.Windows.Visibility]::Collapsed } else { [System.Windows.Visibility]::Visible }
+
+        $fallbackProviderBox.IsEnabled = $fallbackEnabled
+        $onlineReadTestLocal.IsEnabled = [bool]$readTest.IsChecked
+
+        $customNeeded =
+            $providerTag -eq "custom" -or
+            ($isLocal -and $fallbackTag -eq "custom" -and ($fallbackEnabled -or $onlineLocalReadEnabled))
+
+        $customPanel.Visibility = if ($customNeeded) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
     }
     $providerBox.Add_SelectionChanged($updateProviderPanel)
+    $fallbackProviderBox.Add_SelectionChanged($updateProviderPanel)
+    $fallbackCheck.Add_Click($updateProviderPanel)
+    $onlineReadTestLocal.Add_Click($updateProviderPanel)
+    $readTest.Add_Click($updateProviderPanel)
     & $updateProviderPanel
 
     $languageBox.Add_SelectionChanged({
@@ -473,10 +923,14 @@ function Show-SettingsDialog {
         $sizeBox.SelectedIndex = 4
         $eccBox.SelectedIndex = 3
         $readTest.IsChecked = $true
+        $onlineReadTestLocal.IsChecked = $false
         $providerBox.SelectedIndex = 0
+        $fallbackCheck.IsChecked = $true
+        $fallbackProviderBox.SelectedIndex = 0
         $languageBox.SelectedIndex = 0
         $createEndpoint.Text = "https://api.qrserver.com/v1/create-qr-code/"
         $readEndpoint.Text = "https://api.qrserver.com/v1/read-qr-code/"
+        & $updateProviderPanel
     })
 
     $cancel.Add_Click({
@@ -493,9 +947,17 @@ function Show-SettingsDialog {
         }
 
         $provider = [string]$providerBox.SelectedItem.Tag
-        if ($provider -eq "custom") {
+        $fallbackProvider = [string]$fallbackProviderBox.SelectedItem.Tag
+        $fallbackEnabled = [bool]$fallbackCheck.IsChecked
+        $onlineLocalReadEnabled = [bool]$readTest.IsChecked -and [bool]$onlineReadTestLocal.IsChecked
+
+        $customNeeded =
+            $provider -eq "custom" -or
+            ($provider -eq "local" -and $fallbackProvider -eq "custom" -and ($fallbackEnabled -or $onlineLocalReadEnabled))
+
+        if ($customNeeded) {
             $createUri = $null; $readUri = $null
-            if ([string]::IsNullOrWhiteSpace($createEndpoint.Text) -or -not [Uri]::TryCreate($createEndpoint.Text.Trim(), [UriKind]::Absolute, [ref]$createUri)) { Show-AppError (T "error.createEndpoint"); return }
+            if (($provider -eq "custom" -or $fallbackEnabled) -and ([string]::IsNullOrWhiteSpace($createEndpoint.Text) -or -not [Uri]::TryCreate($createEndpoint.Text.Trim(), [UriKind]::Absolute, [ref]$createUri))) { Show-AppError (T "error.createEndpoint"); return }
             if ([bool]$readTest.IsChecked -and ([string]::IsNullOrWhiteSpace($readEndpoint.Text) -or -not [Uri]::TryCreate($readEndpoint.Text.Trim(), [UriKind]::Absolute, [ref]$readUri))) { Show-AppError (T "error.readEndpoint"); return }
         }
 
@@ -505,14 +967,24 @@ function Show-SettingsDialog {
         $Script:Settings.QrSize = [int](($sizeText -replace '[^\d]', ''))
         $Script:Settings.Ecc = [string]$eccBox.SelectedItem.Content
         $Script:Settings.RunReadTest = [bool]$readTest.IsChecked
+        $Script:Settings.RunOnlineReadTestForLocal = [bool]$onlineReadTestLocal.IsChecked
         $Script:Settings.OpenAfterCreate = [bool]$openAfter.IsChecked
         $Script:Settings.Provider = $provider
+        $Script:Settings.UseOnlineFallback = $fallbackEnabled
+        $Script:Settings.FallbackProvider = $fallbackProvider
         $Script:Settings.CustomCreateEndpoint = $createEndpoint.Text.Trim()
         $Script:Settings.CustomReadEndpoint = $readEndpoint.Text.Trim()
         $Script:OutputDir = Resolve-PortablePath $Script:Settings.OutputDir
 
         try { Save-AppSettings }
         catch { Show-AppError ((T "error.settingsSave") + "`r`n`r`n" + $_.Exception.Message); return }
+
+        Write-DebugLog "Settings" ("Saved | Provider={0}; Fallback={1}; FallbackProvider={2}; ReadTest={3}; OnlineReadForLocal={4}" -f `
+            $Script:Settings.Provider,
+            $Script:Settings.UseOnlineFallback,
+            $Script:Settings.FallbackProvider,
+            $Script:Settings.RunReadTest,
+            $Script:Settings.RunOnlineReadTestForLocal)
 
         Set-ApplicationLanguage -LanguageSetting $Script:Settings.Language -AdditionalTarget $dialog
         Update-SettingsSummary
@@ -541,6 +1013,26 @@ function Show-AppInfo {
         [System.Windows.MessageBoxButton]::OK,
         [System.Windows.MessageBoxImage]::Information
     ) | Out-Null
+}
+
+function Show-AppYesNoWarning {
+    param(
+        [string]$Message,
+        [string]$Title = $null
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Title)) {
+        $Title = T "ui.app.title"
+    }
+
+    return [System.Windows.MessageBox]::Show(
+        $Window,
+        $Message,
+        $Title,
+        [System.Windows.MessageBoxButton]::YesNo,
+        [System.Windows.MessageBoxImage]::Warning,
+        [System.Windows.MessageBoxResult]::Yes
+    )
 }
 
 function Set-Status {
@@ -915,6 +1407,8 @@ function Clear-Inputs {
     }
 
     $Script:GeneratedQrPath = $null
+    $Script:GeneratedQrData = $null
+    if ($null -ne $BtnVerifyQr) { $BtnVerifyQr.IsEnabled = $false }
     Set-StatusKey "status.ready" "Normal"
 }
 
@@ -947,10 +1441,10 @@ $names = @(
     "PanelVCard","PanelUrl","PanelWifi","PanelText","PanelEmail","PanelPhone","PanelSms","PanelGeo",
     "VFirst","VLast","VCompany","VTitle","VMobile","VPhone","VEmail","VWeb",
     "VStreet","VZip","VCity","VRegion","VCountry","VNote",
-    "UrlValue","WifiSsid","WifiPassword","WifiType","WifiHidden",
+    "UrlValue","WifiSsid","WifiPassword","WifiType","WifiHidden","WifiNotice",
     "FreeText","MailTo","MailSubject","MailBody","PhoneValue","SmsNumber","SmsText","GeoLat","GeoLon",
     "QrPreview","UseLogo","LogoSize","LogoSizeText","LogoPreview","LogoEmptyText",
-    "BtnChooseLogo","BtnRemoveLogo","SummarySize","SummaryEcc","SummaryReadTest","SummaryProvider","BtnSettingsRight","BtnGenerate","BtnOpenQr","BtnOpenFolder",
+    "BtnChooseLogo","BtnRemoveLogo","SummarySize","SummaryEcc","SummaryReadTest","SummaryProvider","BtnSettingsRight","BtnGenerate","BtnVerifyQr","BtnOpenQr","BtnOpenFolder",
     "StatusDot","StatusText","FooterSize","FooterEcc","FooterSavePath"
 )
 
@@ -1052,6 +1546,89 @@ $BtnOpenQr.Add_Click({
     }
 })
 
+$BtnVerifyQr.Add_Click({
+    $canTest = (
+        -not [string]::IsNullOrWhiteSpace($Script:GeneratedQrPath) -and
+        (Test-Path -LiteralPath $Script:GeneratedQrPath) -and
+        -not [string]::IsNullOrWhiteSpace($Script:GeneratedQrData)
+    )
+
+    if (-not $canTest) {
+        Show-AppInfo (T "info.noQr")
+        return
+    }
+
+    $BtnVerifyQr.IsEnabled = $false
+    try {
+        $testProvider = if ([string]$Script:Settings.Provider -eq "local") {
+            [string]$Script:Settings.FallbackProvider
+        }
+        else {
+            [string]$Script:Settings.Provider
+        }
+
+        $testEndpoints = Get-OnlineProviderEndpoints -Provider $testProvider
+        Set-StatusKey "status.manualTesting" "Normal" @{ provider = $testEndpoints.DisplayName }
+        Write-DebugLog "Manual read test" ("Starting online verification via {0}" -f $testEndpoints.DisplayName)
+
+        $test = Test-QrViaApi `
+            -QrPath $Script:GeneratedQrPath `
+            -ExpectedData $Script:GeneratedQrData `
+            -ReadEndpoint $testEndpoints.ReadEndpoint `
+            -TempDir $Script:TempDir
+
+        if ($test.Success -and $test.Exact) {
+            Write-DebugLog "Manual read test" "PASS | Exact payload match" "Ok"
+            Set-StatusKey "status.manualVerified" "Ok"
+            Show-AppInfo (T "info.manualReadSuccess")
+        }
+        elseif ($test.Success -and [bool]$test.Equivalent) {
+            Write-DebugLog "Manual read test" ("PASS [{0}] | {1}" -f $test.MismatchCategory, $test.MismatchSummary) "Ok"
+            Write-DebugLog "Comparison" ("ExpectedChars={0}; DecodedChars={1}; no payload text logged" -f $test.ExpectedLength, $test.DecodedLength)
+            Set-StatusKey "status.manualVerified" "Ok"
+            Show-AppInfo (T "info.manualReadSuccess")
+        }
+        elseif ($test.Success -and [string]$test.MismatchCategory -eq "CharsetAmbiguity") {
+            Write-DebugLog "Manual read test" ("WARNING [CharsetAmbiguity] | " + $test.MismatchSummary) "Warn"
+            Write-DebugLog "Comparison" ("ExpectedChars={0}; DecodedChars={1}; FirstDifferenceIndex={2}; Expected={3}; Decoded={4}; no payload text logged" -f $test.ExpectedLength, $test.DecodedLength, $test.FirstDifferenceIndex, $test.ExpectedCodePoint, $test.DecodedCodePoint) "Warn"
+            Write-DebugLog "What to do" "The QR image is not necessarily defective. For Unicode content, prefer the local QR engine or verify the code with the target phone/scanner." "Warn"
+            Set-StatusKey "status.manualCharsetWarning" "Warn"
+            Show-AppInfo (T "info.charsetAmbiguity")
+        }
+        elseif ($test.Success -and -not $test.Exact) {
+            Write-DebugLog "Manual read test" ("MISMATCH [{0}] | {1}" -f $test.MismatchCategory, $test.MismatchSummary) "Warn"
+            Write-DebugLog "Comparison" ("ExpectedChars={0}; DecodedChars={1}; FirstDifferenceIndex={2}; Expected={3}; Decoded={4}; no payload text logged" -f $test.ExpectedLength, $test.DecodedLength, $test.FirstDifferenceIndex, $test.ExpectedCodePoint, $test.DecodedCodePoint) "Warn"
+            Set-StatusKey "status.manualMismatch" "Warn"
+            Show-AppInfo (T "info.manualReadMismatch")
+        }
+        elseif ([string]$test.ErrorType -eq "Transport") {
+            $diag = Get-ErrorDiagnostic $test.Exception
+            Write-DebugLog "Manual read test" ("UNAVAILABLE [{0}] | {1}" -f $diag.Category, $diag.Summary) "Warn"
+            Write-DebugLog "What to do" $diag.Advice "Warn"
+            Write-DebugLog "Technical" $diag.Technical "Error"
+            Set-StatusKey "status.manualUnavailable" "Warn"
+            Show-AppInfo (T "info.readUnavailable" @{ reason = $diag.Summary; advice = $diag.Advice })
+        }
+        else {
+            Write-DebugLog "Manual read test" ("DECODE FAILED | " + [string]$test.Error) "Warn"
+            Set-StatusKey "status.manualFailed" "Warn"
+            Show-AppInfo (T "info.manualReadFailed" @{ error = [string]$test.Error })
+        }
+    }
+    catch {
+        $diag = Write-DebugException "Manual read test" $_
+        Set-StatusKey "status.manualUnavailable" "Warn"
+        Show-AppInfo (T "info.readUnavailable" @{ reason = $diag.Summary; advice = $diag.Advice })
+    }
+    finally {
+        $BtnVerifyQr.IsEnabled = (
+            -not [string]::IsNullOrWhiteSpace($Script:GeneratedQrPath) -and
+            (Test-Path -LiteralPath $Script:GeneratedQrPath) -and
+            -not [string]::IsNullOrWhiteSpace($Script:GeneratedQrData)
+        )
+    }
+})
+
 $BtnGenerate.Add_Click({
     try {
         $BtnGenerate.IsEnabled = $false
@@ -1060,15 +1637,38 @@ $BtnGenerate.Add_Click({
         $payload = Build-Payload
         $size = [int]$Script:Settings.QrSize
         $ecc = [string]$Script:Settings.Ecc
-        $provider = [string]$Script:Settings.Provider
 
-        if ($provider -eq "custom") {
-            $createEndpoint = [string]$Script:Settings.CustomCreateEndpoint
-            $readEndpoint = [string]$Script:Settings.CustomReadEndpoint
-        }
-        else {
-            $createEndpoint = "https://api.qrserver.com/v1/create-qr-code/"
-            $readEndpoint = "https://api.qrserver.com/v1/read-qr-code/"
+        # The configured provider remains unchanged. For a payload containing
+        # non-ASCII / Unicode characters, an online provider can optionally be
+        # replaced by a local-first attempt for this generation only.
+        $configuredProvider = [string]$Script:Settings.Provider
+        $provider = $configuredProvider
+        $generationUseOnlineFallback = [bool]$Script:Settings.UseOnlineFallback
+        $generationFallbackProvider = [string]$Script:Settings.FallbackProvider
+        $unicodeLocalFirst = $false
+
+        if ($provider -ne "local" -and ([string]$payload.Data -match '[^\x00-\x7F]')) {
+            $currentOnline = Get-OnlineProviderEndpoints -Provider $provider
+            Write-DebugLog "Unicode guard" ("Non-ASCII payload detected | ConfiguredProvider={0}; PayloadLength={1}; no payload text logged" -f $currentOnline.DisplayName, $payload.Data.Length) "Warn"
+
+            $answer = Show-AppYesNoWarning `
+                -Title (T "unicodeGuard.title") `
+                -Message (T "unicodeGuard.message" @{ provider = $currentOnline.DisplayName })
+
+            if ($answer -eq [System.Windows.MessageBoxResult]::Yes) {
+                # The user explicitly selected local-first for this generation.
+                # If local generation fails, fall back to the provider that was
+                # originally selected for direct online generation. Settings are
+                # NOT changed or persisted by this one-time choice.
+                $unicodeLocalFirst = $true
+                $provider = "local"
+                $generationUseOnlineFallback = $true
+                $generationFallbackProvider = $configuredProvider
+                Write-DebugLog "Unicode guard" ("User selected LOCAL-FIRST | Online fallback={0}; setting unchanged" -f $currentOnline.DisplayName) "Ok"
+            }
+            else {
+                Write-DebugLog "Unicode guard" ("User kept DIRECT ONLINE generation via {0}; setting unchanged" -f $currentOnline.DisplayName) "Warn"
+            }
         }
 
         $useLogoNow =
@@ -1077,8 +1677,19 @@ $BtnGenerate.Add_Click({
             (Test-Path -LiteralPath $Script:LogoPath)
 
         if ($useLogoNow -and $ecc -ne "H") {
+            Write-DebugLog "ECC" ("Logo enabled: overriding configured ECC {0} -> H" -f $ecc) "Warn"
             $ecc = "H"
         }
+
+        $providerDebug = if ($unicodeLocalFirst) {
+            "{0} (configured={1}; UnicodeGuard=LocalFirst; fallback={2})" -f $provider, $configuredProvider, $generationFallbackProvider
+        }
+        else {
+            $provider
+        }
+
+        Write-DebugLog "Generate" ("Mode={0}; Provider={1}; Size={2}px; ECC={3}; Logo={4}; PayloadLength={5}" -f `
+            $Script:Mode, $providerDebug, $size, $ecc, $useLogoNow, $payload.Data.Length)
 
         $dlg = [Microsoft.Win32.SaveFileDialog]::new()
         $dlg.Title = T "dialog.save.title"
@@ -1089,19 +1700,96 @@ $BtnGenerate.Add_Click({
         $dlg.FileName = $payload.DefaultName + ".png"
 
         if (-not $dlg.ShowDialog($Window)) {
+            Write-DebugLog "Generate" "Cancelled by user" "Warn"
             Set-StatusKey "status.cancelled" "Normal"
             return
         }
 
+        # A confirmed new generation attempt invalidates the previous QR result.
+        # This prevents the manual verification button from accidentally testing
+        # an older QR after the new generation attempt fails.
+        $BtnVerifyQr.IsEnabled = $false
+        $Script:GeneratedQrPath = $null
+        $Script:GeneratedQrData = $null
+        $QrPreview.Source = $null
+        $QrPreview.UpdateLayout()
+
         $pngPath = $dlg.FileName
         $Script:OutputDir = Split-Path -Parent $pngPath
+        Write-DebugLog "Output" $pngPath
 
-        Set-StatusKey "status.generating"
-        New-QrPngViaApi -Data $payload.Data -OutputPath $pngPath -Size $size -Ecc $ecc -CreateEndpoint $createEndpoint
+        $usedFallback = $false
+        $localGenerationSucceeded = $false
+        $onlineEndpoints = $null
+
+        if ($provider -eq "local") {
+            Set-StatusKey "status.generatingLocal"
+            Write-DebugLog "Local engine" "Starting local QR generation"
+
+            try {
+                $localResult = New-QrPngLocal -Data $payload.Data -OutputPath $pngPath -Size $size -Ecc $ecc
+                $localGenerationSucceeded = $true
+                Write-DebugLog "Local engine" ("SUCCESS | Version={0}; Mask={1}; Modules={2}; ECC={3}" -f `
+                    $localResult.Version, $localResult.Mask, $localResult.ModuleCount, $localResult.Ecc) "Ok"
+            }
+            catch {
+                $localError = $_.Exception.Message
+                $localDiag = Get-ErrorDiagnostic $_
+                Write-DebugLog "Local engine" ("FAILED [{0}] | {1}" -f $localDiag.Category, $localDiag.Summary) "Warn"
+                Write-DebugLog "What to do" $localDiag.Advice "Warn"
+                Write-DebugLog "Technical" $localDiag.Technical "Error"
+
+                if (-not $generationUseOnlineFallback) {
+                    Write-DebugLog "Fallback" "Disabled - generation stops" "Error"
+                    throw (T "error.localGeneration" @{ error = $localError })
+                }
+
+                $fallbackProvider = $generationFallbackProvider
+                $onlineEndpoints = Get-OnlineProviderEndpoints -Provider $fallbackProvider
+                Set-StatusKey "status.fallback" "Warn" @{ provider = $onlineEndpoints.DisplayName }
+                Write-DebugLog "Fallback" ("Starting online fallback via {0}" -f $onlineEndpoints.DisplayName) "Warn"
+
+                try {
+                    New-QrPngViaApi `
+                        -Data $payload.Data `
+                        -OutputPath $pngPath `
+                        -Size $size `
+                        -Ecc $ecc `
+                        -CreateEndpoint $onlineEndpoints.CreateEndpoint
+
+                    $usedFallback = $true
+                    Write-DebugLog "Fallback" ("SUCCESS via {0}" -f $onlineEndpoints.DisplayName) "Ok"
+                }
+                catch {
+                    $fallbackError = $_.Exception.Message
+                    $fallbackDiag = Write-DebugException "Fallback" $_
+                    throw (T "error.localAndFallback" @{
+                        local = $localError
+                        online = $fallbackError
+                    })
+                }
+            }
+        }
+        else {
+            $onlineEndpoints = Get-OnlineProviderEndpoints -Provider $provider
+            Set-StatusKey "status.generatingOnline" "Normal" @{ provider = $onlineEndpoints.DisplayName }
+            Write-DebugLog "Online provider" ("Starting generation via {0}" -f $onlineEndpoints.DisplayName)
+
+            New-QrPngViaApi `
+                -Data $payload.Data `
+                -OutputPath $pngPath `
+                -Size $size `
+                -Ecc $ecc `
+                -CreateEndpoint $onlineEndpoints.CreateEndpoint
+
+            Write-DebugLog "Online provider" ("SUCCESS via {0}" -f $onlineEndpoints.DisplayName) "Ok"
+        }
 
         if ($useLogoNow) {
             Set-StatusKey "status.logo"
+            Write-DebugLog "Logo" ("Applying logo at {0}%" -f ([double]$LogoSize.Value))
             Add-LogoToQr -QrPath $pngPath -LogoPath $Script:LogoPath -LogoPercent ([double]$LogoSize.Value) -TempDir $Script:TempDir
+            Write-DebugLog "Logo" "SUCCESS" "Ok"
         }
 
         if ($null -ne $payload.VCard) {
@@ -1111,6 +1799,7 @@ $BtnGenerate.Add_Click({
                 $payload.VCard,
                 [System.Text.UTF8Encoding]::new($false)
             )
+            Write-DebugLog "vCard" ("VCF written | " + $vcfPath) "Ok"
         }
 
         # Explicitly release the currently displayed bitmap before loading
@@ -1121,37 +1810,123 @@ $BtnGenerate.Add_Click({
         $QrPreview.Source = New-WpfBitmapImage $pngPath
         $QrPreview.InvalidateVisual()
         $Script:GeneratedQrPath = $pngPath
+        $Script:GeneratedQrData = [string]$payload.Data
+        $BtnVerifyQr.IsEnabled = $true
+
+        $shouldRunOnlineReadTest = $false
+        $readTestEndpoints = $onlineEndpoints
 
         if ([bool]$Script:Settings.RunReadTest) {
-            Set-StatusKey "status.testing"
-            $test = Test-QrViaApi -QrPath $pngPath -ExpectedData $payload.Data -ReadEndpoint $readEndpoint -TempDir $Script:TempDir
+            if ($provider -eq "local") {
+                if ($usedFallback) {
+                    # The payload has already been sent to the fallback provider,
+                    # so the configured read test may run without an additional
+                    # privacy boundary.
+                    $shouldRunOnlineReadTest = $true
+                }
+                elseif ($unicodeLocalFirst) {
+                    # The user originally selected an online provider and then
+                    # explicitly chose the one-time local-first recommendation.
+                    # Keep the normal online read-test behavior for that provider.
+                    $readTestEndpoints = Get-OnlineProviderEndpoints -Provider $generationFallbackProvider
+                    $shouldRunOnlineReadTest = $true
+                }
+                elseif ([bool]$Script:Settings.RunOnlineReadTestForLocal) {
+                    $readTestEndpoints = Get-OnlineProviderEndpoints -Provider ([string]$Script:Settings.FallbackProvider)
+                    $shouldRunOnlineReadTest = $true
+                }
+            }
+            else {
+                $shouldRunOnlineReadTest = $true
+            }
+        }
 
-            if (-not $test.Success) {
+        if ($shouldRunOnlineReadTest) {
+            Set-StatusKey "status.testingOnline" "Normal" @{ provider = $readTestEndpoints.DisplayName }
+            Write-DebugLog "Read test" ("Starting online verification via {0}" -f $readTestEndpoints.DisplayName)
+            $test = Test-QrViaApi `
+                -QrPath $pngPath `
+                -ExpectedData $payload.Data `
+                -ReadEndpoint $readTestEndpoints.ReadEndpoint `
+                -TempDir $Script:TempDir
+
+            if (-not $test.Success -and [string]$test.ErrorType -eq "Transport") {
+                $diag = Get-ErrorDiagnostic $test.Exception
+                Write-DebugLog "Read test" ("UNAVAILABLE [{0}] | {1}" -f $diag.Category, $diag.Summary) "Warn"
+                Write-DebugLog "What to do" $diag.Advice "Warn"
+                Write-DebugLog "Technical" $diag.Technical "Error"
+                Set-StatusKey "status.testUnavailable" "Warn"
+                Show-AppInfo (T "info.readUnavailable" @{ reason = $diag.Summary; advice = $diag.Advice })
+            }
+            elseif (-not $test.Success) {
+                Write-DebugLog "Read test" ("DECODE FAILED | " + [string]$test.Error) "Warn"
                 Set-StatusKey "status.testFailed" "Warn"
                 Show-AppInfo (T "info.readFail" @{ error = $test.Error })
             }
+            elseif ([bool]$test.Equivalent) {
+                Write-DebugLog "Read test" ("PASS [{0}] | {1}" -f $test.MismatchCategory, $test.MismatchSummary) "Ok"
+                Write-DebugLog "Comparison" ("ExpectedChars={0}; DecodedChars={1}; no payload text logged" -f $test.ExpectedLength, $test.DecodedLength)
+                if ($usedFallback) {
+                    Set-StatusKey "status.successFallbackVerified" "Warn" @{ provider = $onlineEndpoints.DisplayName }
+                }
+                elseif ($provider -eq "local") {
+                    Set-StatusKey "status.successLocalVerified" "Ok"
+                }
+                else {
+                    Set-StatusKey "status.successVerified" "Ok"
+                }
+            }
+            elseif ([string]$test.MismatchCategory -eq "CharsetAmbiguity") {
+                Write-DebugLog "Read test" ("WARNING [CharsetAmbiguity] | " + $test.MismatchSummary) "Warn"
+                Write-DebugLog "Comparison" ("ExpectedChars={0}; DecodedChars={1}; FirstDifferenceIndex={2}; Expected={3}; Decoded={4}; no payload text logged" -f $test.ExpectedLength, $test.DecodedLength, $test.FirstDifferenceIndex, $test.ExpectedCodePoint, $test.DecodedCodePoint) "Warn"
+                Write-DebugLog "What to do" "The QR image is not necessarily defective. For Unicode content, prefer the local QR engine or verify the code with the target phone/scanner." "Warn"
+                Set-StatusKey "status.charsetWarning" "Warn"
+            }
             elseif (-not $test.Exact) {
+                Write-DebugLog "Read test" ("MISMATCH [{0}] | {1}" -f $test.MismatchCategory, $test.MismatchSummary) "Warn"
+                Write-DebugLog "Comparison" ("ExpectedChars={0}; DecodedChars={1}; FirstDifferenceIndex={2}; Expected={3}; Decoded={4}; no payload text logged" -f $test.ExpectedLength, $test.DecodedLength, $test.FirstDifferenceIndex, $test.ExpectedCodePoint, $test.DecodedCodePoint) "Warn"
                 Set-StatusKey "status.testMismatch" "Warn"
             }
+            elseif ($usedFallback) {
+                Write-DebugLog "Read test" "PASS | Exact payload match" "Ok"
+                Set-StatusKey "status.successFallbackVerified" "Warn" @{ provider = $onlineEndpoints.DisplayName }
+            }
+            elseif ($provider -eq "local") {
+                Write-DebugLog "Read test" "PASS | Exact payload match" "Ok"
+                Set-StatusKey "status.successLocalVerified" "Ok"
+            }
             else {
+                Write-DebugLog "Read test" "PASS | Exact payload match" "Ok"
                 Set-StatusKey "status.successVerified" "Ok"
             }
         }
+        elseif ($usedFallback) {
+            Write-DebugLog "Read test" "Skipped"
+            Set-StatusKey "status.successFallback" "Warn" @{ provider = $onlineEndpoints.DisplayName }
+        }
+        elseif ($localGenerationSucceeded) {
+            $skipReason = if (-not [bool]$Script:Settings.RunReadTest) { "disabled" } else { "online test not allowed for local generation" }
+            Write-DebugLog "Read test" ("Skipped | " + $skipReason)
+            Set-StatusKey "status.successLocal" "Ok"
+        }
         else {
+            Write-DebugLog "Read test" "Skipped"
             Set-StatusKey "status.success" "Ok"
         }
+
+        Write-DebugLog "Generate" "Completed successfully" "Ok"
 
         if ([bool]$Script:Settings.OpenAfterCreate) {
             Start-Process $pngPath
         }
     }
     catch {
+        $diag = Write-DebugException "Generate" $_
+        if ($null -ne $_.InvocationInfo -and -not [string]::IsNullOrWhiteSpace($_.InvocationInfo.PositionMessage)) {
+            Write-DebugLog "Location" ($_.InvocationInfo.PositionMessage -replace "`r?`n", " | ") "Error"
+        }
         Set-StatusKey "status.error" "Error"
-        Show-AppError (
-            $_.Exception.Message +
-            "`r`n`r`n" +
-            $_.InvocationInfo.PositionMessage
-        )
+        Show-AppError (T "error.operationFailed" @{ summary = $diag.Summary; advice = $diag.Advice })
     }
     finally {
         $BtnGenerate.IsEnabled = $true
@@ -1160,6 +1935,22 @@ $BtnGenerate.Add_Click({
 
 # Initial state
 Load-AppSettings
+
+if ($Script:DebugMode) {
+    Write-DebugLog "Application" "Universal QR-Code Generator v2.5 - debug mode enabled" "Ok"
+    Write-DebugLog "PowerShell" ("Version={0}; Edition={1}; CLR={2}" -f `
+        $PSVersionTable.PSVersion, $PSVersionTable.PSEdition, [Environment]::Version)
+    Write-DebugLog "Project root" $ProjectRoot
+    Write-DebugLog "Settings file" $Script:SettingsFile
+    Write-DebugLog "Settings" ("Provider={0}; Fallback={1}; FallbackProvider={2}; ReadTest={3}; OnlineReadForLocal={4}" -f `
+        $Script:Settings.Provider,
+        $Script:Settings.UseOnlineFallback,
+        $Script:Settings.FallbackProvider,
+        $Script:Settings.RunReadTest,
+        $Script:Settings.RunOnlineReadTestForLocal)
+    Write-DebugLog "Privacy" "QR payload contents are NOT written to the debug console" "Ok"
+}
+
 Apply-LanguageResources $Window
 $VCountry.Text = T "defaults.country"
 Set-Mode "vCard" $NavVCard
@@ -1168,3 +1959,4 @@ Update-SettingsSummary
 Set-StatusKey "status.ready" "Ok"
 
 [void]$Window.ShowDialog()
+Write-DebugLog "Application" "Closed normally" "Ok"
