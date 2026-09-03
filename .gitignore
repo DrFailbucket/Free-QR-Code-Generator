@@ -1,0 +1,13 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Generated output
+*.vcf
+*.png
+!screenshots/*.png
+
+# Local user assets
+logo.*
+local-assets/
+test-output/
