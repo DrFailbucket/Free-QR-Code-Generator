@@ -1,0 +1,11 @@
+{
+  "Language": "auto",
+  "OutputDir": "output",
+  "QrSize": 1000,
+  "Ecc": "H",
+  "RunReadTest": true,
+  "OpenAfterCreate": false,
+  "Provider": "qrserver",
+  "CustomCreateEndpoint": "https://api.qrserver.com/v1/create-qr-code/",
+  "CustomReadEndpoint": "https://api.qrserver.com/v1/read-qr-code/"
+}

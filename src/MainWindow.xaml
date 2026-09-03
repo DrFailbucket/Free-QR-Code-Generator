@@ -1,0 +1,851 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="{DynamicResource ui.app.title}"
+    Width="1540"
+    Height="920"
+    MinWidth="1200"
+    MinHeight="760"
+    WindowStartupLocation="CenterScreen"
+    Background="#07111E"
+    Foreground="#F4F7FB"
+    FontFamily="Segoe UI"
+    ResizeMode="CanResize">
+
+    <Window.Resources>
+        <!-- Palette -->
+        <SolidColorBrush x:Key="Brush.Window" Color="#07111E"/>
+        <SolidColorBrush x:Key="Brush.Header" Color="#081729"/>
+        <SolidColorBrush x:Key="Brush.Sidebar" Color="#091A2E"/>
+        <SolidColorBrush x:Key="Brush.Card" Color="#0C1C30"/>
+        <SolidColorBrush x:Key="Brush.CardAlt" Color="#10243C"/>
+        <SolidColorBrush x:Key="Brush.Input" Color="#10243A"/>
+        <SolidColorBrush x:Key="Brush.Border" Color="#243B56"/>
+        <SolidColorBrush x:Key="Brush.Text" Color="#F4F7FB"/>
+        <SolidColorBrush x:Key="Brush.Muted" Color="#9CAEC3"/>
+        <SolidColorBrush x:Key="Brush.Blue" Color="#0788FF"/>
+        <SolidColorBrush x:Key="Brush.BlueHover" Color="#1697FF"/>
+        <SolidColorBrush x:Key="Brush.Green" Color="#10B981"/>
+        <SolidColorBrush x:Key="Brush.Red" Color="#E5484D"/>
+        <SolidColorBrush x:Key="Brush.Yellow" Color="#F6C453"/>
+
+        <DropShadowEffect x:Key="Shadow.Card"
+                          Color="#000000"
+                          BlurRadius="16"
+                          ShadowDepth="3"
+                          Opacity="0.22"/>
+
+        <!-- Text -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+        </Style>
+
+        <Style x:Key="Text.Muted" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
+        </Style>
+
+        <Style x:Key="Text.Section" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- Input -->
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+            <Setter Property="Background" Value="{StaticResource Brush.Input}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="11,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Brush.Blue}"/>
+            <Setter Property="SelectionBrush" Value="#557FCBFF"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="InputBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="InputBorder" Property="BorderBrush" Value="{StaticResource Brush.Blue}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="InputBorder" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <!--
+                The stock Windows WPF ComboBox template paints the closed
+                selection area light on some systems. A dark foreground keeps
+                the selected value readable there, while ComboBoxItem below
+                remains light-on-dark inside the popup.
+            -->
+            <Setter Property="Foreground" Value="#152033"/>
+            <Setter Property="Background" Value="#F5F7FA"/>
+            <Setter Property="BorderBrush" Value="#6B7C90"/>
+            <Setter Property="Padding" Value="9,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="MinHeight" Value="38"/>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+            <Setter Property="Background" Value="{StaticResource Brush.Input}"/>
+            <Setter Property="Padding" Value="9,6"/>
+        </Style>
+
+        <!-- Buttons -->
+        <Style x:Key="Button.Secondary" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+            <Setter Property="Background" Value="{StaticResource Brush.CardAlt}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="13,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#173252"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#3A5F83"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Button.Primary" TargetType="Button" BasedOn="{StaticResource Button.Secondary}">
+            <Setter Property="Background" Value="{StaticResource Brush.Blue}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Blue}"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Padding" Value="14,13"/>
+        </Style>
+
+        <Style x:Key="Button.Nav" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="10,9"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="NavBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="#173252"/>
+                                <Setter TargetName="NavBorder" Property="BorderBrush" Value="#31587C"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="NavBorder" Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Nav.Icon" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#DCEAFF"/>
+            <Setter Property="Margin" Value="0,0,9,0"/>
+        </Style>
+
+        <Style x:Key="Nav.Label" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+        </Style>
+
+        <!-- Toggle -->
+        <Style x:Key="Toggle.Switch" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="42" Height="22" Margin="0,0,10,0">
+                                <Border x:Name="Track"
+                                        CornerRadius="11"
+                                        Background="#31435A"/>
+                                <Ellipse x:Name="Thumb"
+                                         Width="18"
+                                         Height="18"
+                                         HorizontalAlignment="Left"
+                                         Margin="2"
+                                         Fill="#FFFFFF"/>
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.Blue}"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Slider -->
+        <Style TargetType="Slider">
+            <Setter Property="Foreground" Value="{StaticResource Brush.Blue}"/>
+        </Style>
+
+        <!-- Card -->
+        <Style x:Key="Card.Border" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Brush.Card}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="18"/>
+        </Style>
+
+        <!-- Scrollbars -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="9"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{StaticResource Brush.Window}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="82"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="46"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Background="{StaticResource Brush.Header}"
+                BorderBrush="#15314D"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="22,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{DynamicResource ui.header.title}"
+                               FontSize="22"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{DynamicResource ui.header.subtitle}"
+                               Style="{StaticResource Text.Muted}"
+                               FontSize="13"
+                               Margin="34,3,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button x:Name="BtnNew"
+                            Content="{DynamicResource ui.header.new}"
+                            Style="{StaticResource Button.Secondary}"
+                            Margin="5,0"/>
+                    <Button x:Name="BtnOpenFolderTop"
+                            Content="{DynamicResource ui.header.folder}"
+                            Style="{StaticResource Button.Secondary}"
+                            Margin="5,0"/>
+                    <Button x:Name="BtnSettings"
+                            Content="{DynamicResource ui.header.settings}"
+                            Style="{StaticResource Button.Secondary}"
+                            Margin="5,0"/>
+                    <Button x:Name="BtnInfo"
+                            Content="{DynamicResource ui.header.info}"
+                            Style="{StaticResource Button.Secondary}"
+                            Margin="5,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main -->
+        <Grid Grid.Row="1" Margin="18,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="235"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="490"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <Border Grid.Column="0" Style="{StaticResource Card.Border}" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{DynamicResource ui.sidebar.heading}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource Brush.Muted}"
+                               Margin="8,4,0,10"/>
+
+                    <StackPanel Grid.Row="1">
+                        <Button x:Name="NavVCard" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE716;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.vcard}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavUrl" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE71B;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.url}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavWifi" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE701;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.wifi}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavText" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE70B;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.text}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavEmail" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE715;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.email}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavPhone" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE717;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.phone}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavSms" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8BD;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.sms}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="NavGeo" Style="{StaticResource Button.Nav}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE707;" Style="{StaticResource Nav.Icon}"/>
+                                <TextBlock Text="{DynamicResource ui.nav.geo}" Style="{StaticResource Nav.Label}"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <Border Grid.Row="2"
+                            Background="#0A192A"
+                            BorderBrush="#203A55"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource ui.about.title}" FontWeight="SemiBold"/>
+                            <TextBlock Text="{DynamicResource ui.about.product}"
+                                       Style="{StaticResource Text.Muted}"
+                                       FontSize="12"
+                                       Margin="0,7,0,0"/>
+                            <TextBlock Text="{DynamicResource ui.about.version}"
+                                       Style="{StaticResource Text.Muted}"
+                                       FontSize="12"
+                                       Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Input card -->
+            <Border Grid.Column="2" Style="{StaticResource Card.Border}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock x:Name="TxtModeTitle"
+                                   Text="{DynamicResource mode.vcard.title}"
+                                   FontSize="21"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock x:Name="TxtModeSubtitle"
+                                   Text="{DynamicResource mode.vcard.subtitle}"
+                                   Style="{StaticResource Text.Muted}"
+                                   FontSize="13"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="2"
+                                  VerticalScrollBarVisibility="Hidden"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  PanningMode="VerticalOnly">
+                        <Grid>
+                            <!-- vCard -->
+                            <StackPanel x:Name="PanelVCard">
+                                <TextBlock Text="{DynamicResource vcard.section.contact}" Style="{StaticResource Text.Section}"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource vcard.first}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VFirst"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource vcard.last}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VLast"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource vcard.company}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VCompany"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource vcard.title}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VTitle"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource vcard.mobile}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VMobile"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource vcard.phone}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VPhone"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource vcard.email}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VEmail"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource vcard.website}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VWeb"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Border Height="1" Background="#1D3854" Margin="0,21,0,17"/>
+
+                                <TextBlock Text="{DynamicResource vcard.address}" Style="{StaticResource Text.Section}"/>
+
+                                <TextBlock Text="{DynamicResource vcard.street}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="VStreet"/>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource vcard.zip}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VZip"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource vcard.city}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VCity"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource vcard.region}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VRegion"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource vcard.country}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="VCountry"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="{DynamicResource vcard.note}"
+                                           Style="{StaticResource Text.Muted}"
+                                           Margin="0,16,0,6"/>
+                                <TextBox x:Name="VNote"
+                                         Height="85"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top"/>
+                            </StackPanel>
+
+                            <!-- URL -->
+                            <StackPanel x:Name="PanelUrl" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource url.section}" Style="{StaticResource Text.Section}"/>
+                                <TextBlock Text="{DynamicResource url.target}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="UrlValue" Text="https://"/>
+                            </StackPanel>
+
+                            <!-- WIFI -->
+                            <StackPanel x:Name="PanelWifi" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource wifi.section}" Style="{StaticResource Text.Section}"/>
+                                <TextBlock Text="{DynamicResource wifi.ssid}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="WifiSsid"/>
+                                <TextBlock Text="{DynamicResource wifi.password}" Style="{StaticResource Text.Muted}" Margin="0,14,0,6"/>
+                                <TextBox x:Name="WifiPassword"/>
+                                <TextBlock Text="{DynamicResource wifi.encryption}" Style="{StaticResource Text.Muted}" Margin="0,14,0,6"/>
+                                <ComboBox x:Name="WifiType" SelectedIndex="0">
+                                    <ComboBoxItem Tag="wpa" Content="{DynamicResource wifi.wpa}"/>
+                                    <ComboBoxItem Tag="wep" Content="{DynamicResource wifi.wep}"/>
+                                    <ComboBoxItem Tag="open" Content="{DynamicResource wifi.open}"/>
+                                </ComboBox>
+                                <CheckBox x:Name="WifiHidden"
+                                          Content="{DynamicResource wifi.hidden}"
+                                          Style="{StaticResource Toggle.Switch}"
+                                          Margin="0,18,0,0"/>
+                                <TextBlock Text="{DynamicResource wifi.notice}"
+                                           Style="{StaticResource Text.Muted}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,18,0,0"/>
+                            </StackPanel>
+
+                            <!-- TEXT -->
+                            <StackPanel x:Name="PanelText" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource text.section}" Style="{StaticResource Text.Section}"/>
+                                <TextBox x:Name="FreeText"
+                                         Height="330"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top"/>
+                            </StackPanel>
+
+                            <!-- EMAIL -->
+                            <StackPanel x:Name="PanelEmail" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource email.section}" Style="{StaticResource Text.Section}"/>
+                                <TextBlock Text="{DynamicResource email.to}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="MailTo"/>
+                                <TextBlock Text="{DynamicResource email.subject}" Style="{StaticResource Text.Muted}" Margin="0,14,0,6"/>
+                                <TextBox x:Name="MailSubject"/>
+                                <TextBlock Text="{DynamicResource email.body}" Style="{StaticResource Text.Muted}" Margin="0,14,0,6"/>
+                                <TextBox x:Name="MailBody"
+                                         Height="190"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top"/>
+                            </StackPanel>
+
+                            <!-- PHONE -->
+                            <StackPanel x:Name="PanelPhone" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource phone.section}" Style="{StaticResource Text.Section}"/>
+                                <TextBlock Text="{DynamicResource phone.hint}"
+                                           Style="{StaticResource Text.Muted}"
+                                           Margin="0,0,0,6"/>
+                                <TextBox x:Name="PhoneValue"/>
+                            </StackPanel>
+
+                            <!-- SMS -->
+                            <StackPanel x:Name="PanelSms" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource sms.section}" Style="{StaticResource Text.Section}"/>
+                                <TextBlock Text="{DynamicResource sms.number}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                <TextBox x:Name="SmsNumber"/>
+                                <TextBlock Text="{DynamicResource sms.message}"
+                                           Style="{StaticResource Text.Muted}"
+                                           Margin="0,14,0,6"/>
+                                <TextBox x:Name="SmsText"
+                                         Height="190"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top"/>
+                            </StackPanel>
+
+                            <!-- GEO -->
+                            <StackPanel x:Name="PanelGeo" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource geo.section}" Style="{StaticResource Text.Section}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="14"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource geo.lat}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="GeoLat"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource geo.lon}" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="GeoLon"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Preview/settings -->
+            <ScrollViewer Grid.Column="4"
+                          VerticalScrollBarVisibility="Hidden"
+                          HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalOnly">
+                <StackPanel>
+                    <Border Style="{StaticResource Card.Border}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource preview.title}" Style="{StaticResource Text.Section}"/>
+
+                            <Border Background="#FFFFFF"
+                                    CornerRadius="7"
+                                    Height="300"
+                                    Margin="0,2,0,14"
+                                    Padding="14">
+                                <Image x:Name="QrPreview"
+                                       Stretch="Uniform"/>
+                            </Border>
+
+                            <CheckBox x:Name="UseLogo"
+                                      Content="{DynamicResource preview.useLogo}"
+                                      Style="{StaticResource Toggle.Switch}"
+                                      IsChecked="False"/>
+
+                            <Grid Margin="0,16,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="70"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{DynamicResource preview.logoSize}"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource Text.Muted}"/>
+                                <Slider x:Name="LogoSize"
+                                        Grid.Column="1"
+                                        Minimum="8"
+                                        Maximum="20"
+                                        Value="16"
+                                        TickFrequency="2"
+                                        IsSnapToTickEnabled="False"
+                                        Margin="15,0"/>
+                                <TextBlock x:Name="LogoSizeText"
+                                           Grid.Column="2"
+                                           Text="16 %"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right"
+                                           FontWeight="SemiBold"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource Card.Border}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource logo.section}" Style="{StaticResource Text.Section}"/>
+                                <Border Height="105"
+                                        Background="#0A192A"
+                                        BorderBrush="#4A6178"
+                                        BorderThickness="1"
+                                        CornerRadius="7">
+                                    <Grid>
+                                        <Image x:Name="LogoPreview" Stretch="Uniform" Margin="10"/>
+                                        <TextBlock x:Name="LogoEmptyText"
+                                                   Text="{DynamicResource logo.none}"
+                                                   Foreground="{StaticResource Brush.Muted}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <Button x:Name="BtnChooseLogo"
+                                        Content="{DynamicResource logo.choose}"
+                                        Style="{StaticResource Button.Secondary}"
+                                        Margin="0,12,0,0"/>
+                                <Button x:Name="BtnRemoveLogo"
+                                        Content="{DynamicResource logo.remove}"
+                                        Style="{StaticResource Button.Secondary}"
+                                        Margin="0,8,0,0"
+                                        Foreground="#FFADB0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource Card.Border}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource summary.title}" Style="{StaticResource Text.Section}"/>
+
+                                <Grid Margin="0,1,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource summary.size}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock x:Name="SummarySize" Grid.Column="1" Text="1000 px" FontWeight="SemiBold"/>
+                                </Grid>
+
+                                <Grid Margin="0,11,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource summary.ecc}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock x:Name="SummaryEcc" Grid.Column="1" Text="H" FontWeight="SemiBold"/>
+                                </Grid>
+
+                                <Grid Margin="0,11,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource summary.readtest}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock x:Name="SummaryReadTest" Grid.Column="1" Text="" FontWeight="SemiBold"/>
+                                </Grid>
+
+                                <Grid Margin="0,11,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource summary.provider}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock x:Name="SummaryProvider" Grid.Column="1" Text="" FontWeight="SemiBold"/>
+                                </Grid>
+
+                                <Button x:Name="BtnSettingsRight"
+                                        Content="{DynamicResource summary.openSettings}"
+                                        Style="{StaticResource Button.Secondary}"
+                                        Margin="0,16,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Button x:Name="BtnGenerate"
+                            Content="{DynamicResource action.generate}"
+                            Style="{StaticResource Button.Primary}"
+                            Margin="0,12,0,0"/>
+
+                    <Grid Margin="0,9,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="9"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnOpenQr"
+                                Content="{DynamicResource action.openQr}"
+                                Style="{StaticResource Button.Secondary}"/>
+                        <Button x:Name="BtnOpenFolder"
+                                Grid.Column="2"
+                                Content="{DynamicResource action.openFolder}"
+                                Style="{StaticResource Button.Secondary}"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer -->
+        <Border Grid.Row="2"
+                Background="#06101B"
+                BorderBrush="#15314D"
+                BorderThickness="0,1,0,0">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse x:Name="StatusDot"
+                             Width="12"
+                             Height="12"
+                             Fill="{StaticResource Brush.Green}"
+                             Margin="0,0,9,0"/>
+                    <TextBlock x:Name="StatusText"
+                               Text="{DynamicResource status.ready}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock x:Name="FooterSize" Text="1000 px" Style="{StaticResource Text.Muted}"/>
+                    <TextBlock Text="   |   " Style="{StaticResource Text.Muted}"/>
+                    <TextBlock x:Name="FooterEcc" Text="ECC H" Style="{StaticResource Text.Muted}"/>
+                    <TextBlock Text="   |   " Style="{StaticResource Text.Muted}"/>
+                    <TextBlock x:Name="FooterSavePath" Text="Downloads" Style="{StaticResource Text.Muted}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

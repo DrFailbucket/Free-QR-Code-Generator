@@ -1,0 +1,22 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Portable runtime settings
+config/settings.json
+
+# Generated output
+output/*
+!output/.gitkeep
+*.vcf
+*.png
+!screenshots/*.png
+
+# Portable temporary files
+temp/*
+!temp/.gitkeep
+
+# Local user assets
+logo.*
+local-assets/
+test-output/
