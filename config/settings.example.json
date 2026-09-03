@@ -4,8 +4,11 @@
   "QrSize": 1000,
   "Ecc": "H",
   "RunReadTest": true,
+  "RunOnlineReadTestForLocal": false,
   "OpenAfterCreate": false,
-  "Provider": "qrserver",
+  "Provider": "local",
+  "UseOnlineFallback": true,
+  "FallbackProvider": "qrserver",
   "CustomCreateEndpoint": "https://api.qrserver.com/v1/create-qr-code/",
   "CustomReadEndpoint": "https://api.qrserver.com/v1/read-qr-code/"
 }
