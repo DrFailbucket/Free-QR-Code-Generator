@@ -122,7 +122,9 @@ A future version could replace the API with a fully local QR encoder.
 
 ## License
 
-No license has been selected yet. Add a `LICENSE` file before publishing if you want to explicitly define reuse and redistribution terms.
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for details.
 
 
 ## v2.1 fixes
