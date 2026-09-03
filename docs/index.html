@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://api.qrserver.com; connect-src https://api.qrserver.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
+  <title>Universal QR-Code Generator — Web</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title"><span class="brand-mark">▦</span> <span data-i18n="header.title">Universal QR-Code Generator</span></div>
+        <div class="brand-subtitle" data-i18n="header.subtitle">QR-Codes schnell, einfach und professionell erstellen.</div>
+      </div>
+      <div class="top-actions">
+        <button class="btn secondary" id="btnNew" type="button"><span data-i18n="header.new">＋ Neu</span></button>
+        <button class="btn secondary" id="btnSettings" type="button"><span data-i18n="header.settings">⚙ Einstellungen</span></button>
+        <button class="btn secondary" id="btnInfo" type="button"><span data-i18n="header.info">ⓘ Info</span></button>
+        <a class="btn secondary link-button" href="https://github.com/DrFailbucket/QR_Code-Generator-with-UI" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="card sidebar">
+        <div class="sidebar-title" data-i18n="sidebar.heading">QR-CODE TYP</div>
+        <nav class="nav-list" aria-label="QR-Code Typ">
+          <button class="nav-btn active" data-mode="vcard" type="button"><span class="nav-icon">👤</span><span data-i18n="nav.vcard">Kontakt / vCard</span></button>
+          <button class="nav-btn" data-mode="url" type="button"><span class="nav-icon">🔗</span><span data-i18n="nav.url">Website / URL</span></button>
+          <button class="nav-btn" data-mode="wifi" type="button"><span class="nav-icon">◉</span><span data-i18n="nav.wifi">WLAN</span></button>
+          <button class="nav-btn" data-mode="text" type="button"><span class="nav-icon">✎</span><span data-i18n="nav.text">Freier Text</span></button>
+          <button class="nav-btn" data-mode="email" type="button"><span class="nav-icon">✉</span><span data-i18n="nav.email">E-Mail</span></button>
+          <button class="nav-btn" data-mode="phone" type="button"><span class="nav-icon">☎</span><span data-i18n="nav.phone">Telefonnummer</span></button>
+          <button class="nav-btn" data-mode="sms" type="button"><span class="nav-icon">☏</span><span data-i18n="nav.sms">SMS</span></button>
+          <button class="nav-btn" data-mode="geo" type="button"><span class="nav-icon">⌖</span><span data-i18n="nav.geo">Standort / Geo</span></button>
+        </nav>
+
+        <div class="privacy-card">
+          <div class="privacy-badge"><span class="dot yellow"></span><span data-i18n="privacy.onlineBadge">Online-Erzeugung</span></div>
+          <p data-i18n="privacy.onlineShort">QR-Inhalte werden erst beim Klick auf „QR erstellen“ an QRServer übertragen.</p>
+        </div>
+      </aside>
+
+      <section class="card editor-card">
+        <div class="editor-header">
+          <h1 id="modeTitle">Kontakt / vCard</h1>
+          <p id="modeSubtitle">Erstelle einen QR-Code mit deinen Kontaktdaten (vCard 3.0).</p>
+        </div>
+
+        <div id="formHost"></div>
+      </section>
+
+      <aside class="right-column">
+        <section class="card preview-card">
+          <div class="section-heading" data-i18n="preview.title">QR-Code Vorschau</div>
+          <div class="preview-frame">
+            <canvas id="qrCanvas" width="1000" height="1000" aria-label="QR-Code Vorschau"></canvas>
+            <div id="previewPlaceholder" class="preview-placeholder">
+              <div class="placeholder-icon">▦</div>
+              <div data-i18n="preview.empty">Noch kein QR-Code erstellt</div>
+            </div>
+          </div>
+
+          <div class="logo-row">
+            <label class="switch-label">
+              <input id="useLogo" type="checkbox">
+              <span class="switch"></span>
+              <span data-i18n="preview.useLogo">Logo verwenden</span>
+            </label>
+          </div>
+
+          <div id="logoControls" class="logo-controls hidden">
+            <div class="field">
+              <label for="logoFile" data-i18n="logo.chooseLabel">Logo-Datei</label>
+              <input id="logoFile" class="file-input" type="file" accept="image/png,image/jpeg,image/bmp">
+              <div id="logoName" class="muted small" data-i18n="logo.none">Kein Logo ausgewählt</div>
+            </div>
+            <div class="field">
+              <div class="range-label">
+                <label for="logoSize" data-i18n="preview.logoSize">Logo-Größe</label>
+                <span id="logoSizeValue">16 %</span>
+              </div>
+              <input id="logoSize" type="range" min="8" max="20" step="1" value="16">
+            </div>
+          </div>
+        </section>
+
+        <section class="card settings-summary">
+          <div class="section-heading" data-i18n="summary.title">Aktuelle Einstellungen</div>
+          <div class="summary-grid">
+            <span data-i18n="summary.size">PNG-Größe</span><strong id="summarySize">1000 px</strong>
+            <span data-i18n="summary.ecc">Fehlerkorrektur</span><strong id="summaryEcc">H</strong>
+            <span data-i18n="summary.readtest">Lesetest</span><strong id="summaryRead">An</strong>
+            <span data-i18n="summary.provider">QR-Dienst</span><strong>QRServer</strong>
+          </div>
+          <button class="btn secondary full" id="btnSettings2" type="button"><span data-i18n="summary.openSettings">⚙ Einstellungen öffnen</span></button>
+        </section>
+
+        <button class="btn primary generate-btn" id="btnGenerate" type="button"><span data-i18n="action.generate">▦ QR ERSTELLEN</span></button>
+
+        <div class="result-actions">
+          <button class="btn secondary" id="btnDownload" type="button" disabled><span data-i18n="action.download">⬇ PNG herunterladen</span></button>
+          <button class="btn secondary" id="btnVerify" type="button" disabled title=""><span data-i18n="action.verify">✓ QR online prüfen</span></button>
+          <button class="btn secondary" id="btnVcf" type="button" disabled><span data-i18n="action.vcf">⬇ vCard herunterladen</span></button>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <div class="status-wrap">
+        <span id="statusDot" class="status-dot ok"></span>
+        <span id="statusText" data-i18n="status.ready">Bereit</span>
+      </div>
+      <div class="footer-meta">
+        <span id="footerSize">1000 px</span>
+        <span id="footerEcc">ECC H</span>
+        <span>QRServer / goQR.me</span>
+      </div>
+    </footer>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 id="modalTitle">Dialog</h2>
+        <button class="icon-btn" id="modalClose" type="button" aria-label="Schließen">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/payloads.js"></script>
+  <script src="js/qr-api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
