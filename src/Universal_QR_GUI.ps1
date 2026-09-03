@@ -1044,7 +1044,7 @@ $BtnSettingsRight.Add_Click({
 
 $BtnInfo.Add_Click({
     Show-AppInfo (
-        "Universal QR-Code Generator v2.3.2`r`n`r`n" +
+        "Universal QR-Code Generator v2.3.3`r`n`r`n" +
         "PowerShell 5.1 + WPF`r`n`r`n" +
         "QR-Erzeugung: api.qrserver.com`r`n" +
         "Optionaler Lesetest: api.qrserver.com`r`n`r`n" +

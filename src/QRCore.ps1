@@ -337,7 +337,6 @@ function New-WpfBitmapImage {
         $bitmap = [System.Windows.Media.Imaging.BitmapImage]::new()
         $bitmap.BeginInit()
         $bitmap.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-        $bitmap.CreateOptions = [System.Windows.Media.Imaging.BitmapCreateOptions]::IgnoreImageCache
         $bitmap.StreamSource = $stream
         $bitmap.EndInit()
         $bitmap.Freeze()

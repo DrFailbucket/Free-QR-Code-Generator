@@ -1,4 +1,4 @@
-# Universal QR-Code Generator — WPF v2.3.2
+# Universal QR-Code Generator — WPF v2.3.3
 
 A lightweight Windows desktop GUI for creating QR codes with **PowerShell 5.1 + WPF/XAML**.
 
@@ -204,3 +204,11 @@ An API using a different schema, authentication mechanism or response format nee
 - The settings scrollbar stays visually hidden to keep the clean UI.
 - Settings buttons now use the same rounded WPF style as the main application.
 - Added hover, pressed and disabled visual states to settings buttons.
+
+
+## v2.3.3 hotfix
+
+- Fixed `ArgumentNullException` / `Der Schlüssel darf nicht NULL sein` when refreshing the QR preview.
+- The error occurred during `BitmapImage.EndInit()` after generating a QR code.
+- Removed `BitmapCreateOptions.IgnoreImageCache` from stream-based image loading.
+- QR previews still bypass stale file-URI caching because every preview is loaded from fresh file bytes into a new memory stream.

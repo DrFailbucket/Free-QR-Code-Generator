@@ -399,7 +399,7 @@
                                        Style="{StaticResource Text.Muted}"
                                        FontSize="12"
                                        Margin="0,7,0,0"/>
-                            <TextBlock Text="Version 2.3.2 · PowerShell / WPF"
+                            <TextBlock Text="Version 2.3.3 · PowerShell / WPF"
                                        Style="{StaticResource Text.Muted}"
                                        FontSize="12"
                                        Margin="0,3,0,0"/>
