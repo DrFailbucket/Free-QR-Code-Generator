@@ -1,10 +1,10 @@
 [**English**](README.md) | [Deutsch](README.de.md)
 
-# Universal QR-Code Generator — WPF v2.5
+# Free QR Code Generator — Windows Desktop & Web
 
-A lightweight and portable Windows desktop GUI for creating QR codes with **PowerShell 5.1 + WPF/XAML**.
+A free and portable QR code generator for **Windows and the web**. Create QR codes for vCards, Wi-Fi, URLs, text, email, SMS and geo data, with optional custom logos and PNG export.
 
-The application supports fully local / offline QR generation, optional online providers, automatic fallback, German and English UI, custom logos, vCard export and QR readability testing.
+The Windows desktop version is built with **PowerShell 5.1 + WPF/XAML** and supports fully local / offline QR generation. The browser version provides quick online generation through GitHub Pages.
 
 <p align="center">
   <a href="screenshots/Screenshot1.png">
@@ -27,7 +27,7 @@ The application supports fully local / offline QR generation, optional online pr
 
 <p align="center">
   <strong>🌐 Try it now directly in your browser</strong><br><br>
-  <a href="https://drfailbucket.github.io/QR_Code-Generator-with-UI/">
+  <a href="https://drfailbucket.github.io/Free-QR-Code-Generator/">
     <strong>Open Web QR Generator →</strong>
   </a>
 </p>
@@ -38,7 +38,7 @@ The v2 interface is a full WPF redesign of the original WinForms version. QR gen
 
 A browser-based version is available through GitHub Pages:
 
-**[Open the Web QR Generator →](https://drfailbucket.github.io/QR_Code-Generator-with-UI/)**
+**[Open the Web QR Generator →](https://drfailbucket.github.io/Free-QR-Code-Generator/)**
 
 The web version provides the same core QR types and a similar interface to the Windows desktop application.
 
@@ -65,7 +65,7 @@ QR contents are transmitted to QRServer when a QR code is generated. If online v
 
 For sensitive data, offline environments or maximum Unicode reliability, the **Windows desktop version is recommended**. Its local QR engine can generate QR codes entirely on-device and only uses an online provider when explicitly configured or as an optional fallback.
 
-**[Download the latest desktop release →](https://github.com/DrFailbucket/QR_Code-Generator-with-UI/releases/latest)**
+**[Download the latest desktop release →](https://github.com/DrFailbucket/Free-QR-Code-Generator/releases/latest)**
 
 ## Features
 
@@ -256,7 +256,7 @@ from appearing directly in the debug log.
 ## Project structure
 
 ```text
-QR_Code-Generator-with-UI/
+Free-QR-Code-Generator/
 ├── src/
 │   ├── Universal_QR_GUI.ps1
 │   ├── MainWindow.xaml

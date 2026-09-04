@@ -1,10 +1,10 @@
 [English](README.md) | [**Deutsch**](README.de.md)
 
-# Universal QR-Code Generator — WPF v2.5
+# Free QR Code Generator — Windows Desktop & Web
 
-Eine leichte und portable Windows-Desktop-Anwendung zum Erstellen von QR-Codes mit **PowerShell 5.1 + WPF/XAML**.
+Ein kostenloser und portabler QR-Code-Generator für **Windows und den Browser**. Erstelle QR-Codes für vCards, WLAN, URLs, Text, E-Mail, SMS und Geo-Daten, wahlweise mit eigenem Logo und PNG-Export.
 
-Die Anwendung unterstützt vollständig lokale / offline QR-Erzeugung, optionale Online-Provider, automatischen Fallback, eine deutsche und englische Oberfläche, eigene Logos, vCard-Export und QR-Lesbarkeitstests.
+Die Windows-Desktop-Version basiert auf **PowerShell 5.1 + WPF/XAML** und unterstützt vollständig lokale / offline QR-Erzeugung. Die Browser-Version ermöglicht die schnelle Online-Erzeugung über GitHub Pages.
 
 <p align="center">
   <a href="screenshots/Screenshot1.png">
@@ -26,7 +26,7 @@ Die Anwendung unterstützt vollständig lokale / offline QR-Erzeugung, optionale
 
 <p align="center">
   <strong>🌐 Jetzt direkt im Browser ausprobieren</strong><br><br>
-  <a href="https://drfailbucket.github.io/QR_Code-Generator-with-UI/">
+  <a href="https://drfailbucket.github.io/Free-QR-Code-Generator/">
     <strong>Web QR Generator öffnen →</strong>
   </a>
 </p>
@@ -37,7 +37,7 @@ Die v2-Oberfläche ist ein vollständiger WPF-Neuaufbau der ursprünglichen WinF
 
 Über GitHub Pages steht zusätzlich eine Browser-Version bereit:
 
-**[Web QR Generator öffnen →](https://drfailbucket.github.io/QR_Code-Generator-with-UI/)**
+**[Web QR Generator öffnen →](https://drfailbucket.github.io/Free-QR-Code-Generator/)**
 
 Die Web-Version bietet die gleichen grundlegenden QR-Typen und eine sehr ähnliche Oberfläche wie die Windows-Anwendung.
 
@@ -64,7 +64,7 @@ Beim Erzeugen eines QR-Codes wird dessen Inhalt an QRServer übertragen. Wird de
 
 Für sensible Daten, Offline-Nutzung oder die höchste Zuverlässigkeit bei Unicode-Zeichen empfiehlt sich die **Windows-Desktop-Version**. Deren lokale QR-Engine kann QR-Codes vollständig auf dem Gerät erzeugen und verwendet einen Online-Dienst nur bei entsprechender Einstellung oder als optionalen Fallback.
 
-**[Neueste Desktop-Version herunterladen →](https://github.com/DrFailbucket/QR_Code-Generator-with-UI/releases/latest)**
+**[Neueste Desktop-Version herunterladen →](https://github.com/DrFailbucket/Free-QR-Code-Generator/releases/latest)**
 
 ## Funktionen
 
@@ -255,7 +255,7 @@ nicht direkt im Debug-Log.
 ## Projektstruktur
 
 ```text
-QR_Code-Generator-with-UI/
+Free-QR-Code-Generator/
 ├── src/
 │   ├── Universal_QR_GUI.ps1
 │   ├── MainWindow.xaml
