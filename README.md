@@ -1,3 +1,5 @@
+[**English**](README.md) | [Deutsch](README.de.md)
+
 # Universal QR-Code Generator — WPF v2.5
 
 A lightweight and portable Windows desktop GUI for creating QR codes with **PowerShell 5.1 + WPF/XAML**.
@@ -22,7 +24,48 @@ The application supports fully local / offline QR generation, optional online pr
   <i>Click a screenshot to view it in full size.</i>
 </p>
 
+
+<p align="center">
+  <strong>🌐 Try it now directly in your browser</strong><br><br>
+  <a href="https://drfailbucket.github.io/QR_Code-Generator-with-UI/">
+    <strong>Open Web QR Generator →</strong>
+  </a>
+</p>
+
 The v2 interface is a full WPF redesign of the original WinForms version. QR generation logic is separated from the UI so the application can be styled, extended and maintained without rewriting the complete frontend.
+
+## Web Version
+
+A browser-based version is available through GitHub Pages:
+
+**[Open the Web QR Generator →](https://drfailbucket.github.io/QR_Code-Generator-with-UI/)**
+
+The web version provides the same core QR types and a similar interface to the Windows desktop application.
+
+It supports:
+
+- Contact / vCard
+- Website / URL
+- Wi-Fi
+- Plain text
+- Email
+- Phone
+- SMS
+- Geo coordinates
+- Custom logo overlay
+- PNG download
+- vCard download
+- German and English UI
+- Automatic or manual online QR verification
+- Unicode / charset warnings
+
+The web version intentionally uses the fixed **QRServer / goQR.me API**. There is no custom API configuration and no API key embedded in the page.
+
+QR contents are transmitted to QRServer when a QR code is generated. If online verification is used, the finished QR image is also uploaded to the QRServer reader service.
+
+For sensitive data, offline environments or maximum Unicode reliability, the **Windows desktop version is recommended**. Its local QR engine can generate QR codes entirely on-device and only uses an online provider when explicitly configured or as an optional fallback.
+
+**[Download the latest desktop release →](https://github.com/DrFailbucket/QR_Code-Generator-with-UI/releases/latest)**
 
 ## Features
 
@@ -233,12 +276,19 @@ QR_Code-Generator-with-UI/
 │
 ├── screenshots/
 │
+├── docs/                      # GitHub Pages web version
+│   ├── index.html
+│   ├── css/
+│   ├── js/
+│   └── assets/
+│
 ├── output/                    # default QR destination
 ├── temp/                      # temporary runtime files
 │
 ├── Universal_QR_GUI_Starten.vbs
 ├── Universal_QR_GUI_Debug.bat
 ├── README.md
+├── README.de.md
 ├── LICENSE
 └── .gitignore
 ```
